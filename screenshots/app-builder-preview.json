@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "대시보드 · Korea Equity Command Center",
+      "hasCanvas": false,
+      "bodyTextLen": 2263,
+      "bodyTextHash": "2fa581e7296d3c21b51b7093c5ef8aeeed24eacb8e99fa077f0d1319fb24f8e9",
+      "bodyTextPrefix": "지수 수신 중… 실시간: KIS Open API · KRX WebSocket(설정 시) · 백업: 네이버 금융 스냅",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "대시보드 · Korea Equity Command Center",
+      "hasCanvas": false,
+      "bodyTextLen": 1990,
+      "bodyTextHash": "d74e8097538a1b14a4cfe6630f77b7c2ba1de31cc64c779af2769a2cbef90539",
+      "bodyTextPrefix": "KX Equity COMMAND 실시간: KIS Open API · KRX WebSocket(설정 시) · 백업: ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [
+    "BRAND NOTE: no custom public/og.jpg — the platform will serve the og.grok.me placeholder. Custom cards are the default for games of every kind (DOM board/word games included), whimsical apps, creative tools, and brand-forward pages — only plain utilities (converters, CRUD trackers, admin dashboards) keep the placeholder. If this app is not a plain utility, finish the brand-asset pass per /workspace/.grok/skills/og/SKILL.md."
+  ],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

@@ -1,0 +1,15 @@
+node_modules
+.tanstack
+.vercel
+.output
+.nitro
+dist
+.env
+.env.local
+*.log
+screenshots
+.grok
+artifacts
+.DS_Store
+*.tsbuildinfo
+node_modules/.vite

@@ -1,0 +1,28 @@
+{
+  "taxonomyVersion": "MTI-2026",
+  "effectiveFrom": "2026-06-01",
+  "sourceNote": "MOTIE monthly export/import trend framework — 20 major export items (expanded from 15 in the 2026 MTI revision). Verify against the latest MOTIE monthly release before relying on this list.",
+  "verificationStatus": "UNVERIFIED_SEED",
+  "items": [
+    { "key": "semiconductors", "ko": "반도체", "en": "Semiconductors", "subItems": ["메모리(DRAM)", "메모리(NAND)", "시스템반도체"] },
+    { "key": "automobiles", "ko": "자동차", "en": "Automobiles", "subItems": ["신차", "중고차"] },
+    { "key": "auto_parts", "ko": "자동차부품", "en": "Auto Parts", "subItems": [] },
+    { "key": "general_machinery", "ko": "일반기계", "en": "General Machinery", "subItems": [] },
+    { "key": "petrochemicals", "ko": "석유화학", "en": "Petrochemicals", "subItems": [] },
+    { "key": "petroleum_products", "ko": "석유제품", "en": "Petroleum Products", "subItems": [] },
+    { "key": "steel", "ko": "철강", "en": "Steel", "subItems": ["기타 철강금속제품"] },
+    { "key": "ships", "ko": "선박", "en": "Ships / Shipbuilding", "subItems": [] },
+    { "key": "displays", "ko": "디스플레이", "en": "Displays", "subItems": [] },
+    { "key": "wireless_devices", "ko": "무선통신기기", "en": "Wireless Communication Devices", "subItems": [] },
+    { "key": "computers", "ko": "컴퓨터", "en": "Computers", "subItems": [] },
+    { "key": "bio_health", "ko": "바이오헬스", "en": "Bio-Health", "subItems": ["의약품", "의료기기"] },
+    { "key": "secondary_batteries", "ko": "이차전지", "en": "Secondary Batteries", "subItems": ["리튬이온전지", "배터리 소재"] },
+    { "key": "textiles", "ko": "섬유", "en": "Textiles", "subItems": ["천연소재", "가방", "신발"] },
+    { "key": "home_appliances", "ko": "가전", "en": "Home Appliances", "subItems": [] },
+    { "key": "electrical_equipment", "ko": "전기기기", "en": "Electrical Equipment", "subItems": [], "addedIn2026Revision": true },
+    { "key": "non_ferrous_metals", "ko": "비철금속", "en": "Non-ferrous Metals", "subItems": [], "addedIn2026Revision": true },
+    { "key": "agri_fishery_food", "ko": "농수산식품", "en": "Agri-Fishery-Food", "subItems": [], "addedIn2026Revision": true },
+    { "key": "cosmetics", "ko": "화장품", "en": "Cosmetics", "subItems": [], "addedIn2026Revision": true },
+    { "key": "household_goods", "ko": "생활용품", "en": "Household / Lifestyle Goods", "subItems": [], "addedIn2026Revision": true }
+  ]
+}

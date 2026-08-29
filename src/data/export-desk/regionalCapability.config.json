@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "note": "Administrative disclosure rules. 시군구 × HSK-10 is not an official published cube.",
+  "levels": [
+    { "id": "NATIONAL", "ko": "전국", "available": true, "classifications": ["HS", "HSK", "MTI"] },
+    { "id": "SIDO", "ko": "시도", "available": true, "classifications": ["HS", "MTI"], "count": 17 },
+    { "id": "SIGUNGU", "ko": "시군구", "available": false, "reason": "관세청 공식 월별 큐브가 시군구×HSK-10을 제공하지 않습니다." },
+    { "id": "CUSTOMS_OFFICE", "ko": "세관", "available": true, "note": "세관 ≠ 생산지" },
+    { "id": "COUNTRY", "ko": "국가", "available": true },
+    { "id": "ECONOMIC_BLOC", "ko": "경제권", "available": true }
+  ],
+  "forbiddenCombos": [
+    {
+      "geo": "SIGUNGU",
+      "classification": "HSK10",
+      "reason": "시군구 × HSK-10 공식 시계열이 없습니다. 숫자를 합성하지 않습니다."
+    }
+  ]
+}
