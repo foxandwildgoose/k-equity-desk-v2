@@ -140,6 +140,13 @@ export interface ResearchReport {
   /** Origin of the listing row */
   sourceKind?: "naver" | "hankyung";
   sourceLabel?: string;
+  /** stock.naver.com research v2 type (company|industry|invest|economy|debenture|market). */
+  v2Type?: "market" | "company" | "industry" | "invest" | "economy" | "debenture";
+  /** Where the extractive summary came from. */
+  summarySource?: "preview" | "detail" | "pdf-text" | "none";
+  /** Only when an older same-broker/same-ticker report was actually fetched (F2.5). */
+  prevTargetPrice?: number;
+  prevRating?: string;
 }
 
 export interface NewsItem {
@@ -1436,50 +1443,23 @@ export async function fetchResearchPack(code: string): Promise<{
   return { company, industry, market, economy };
 }
 
-/** Market-wide research desk — no stock required */
+/**
+ * Market-wide legacy research desk (fallback path only). The former fixed
+ * 7-stock "featured" list is gone (D6/AT-18): company research now pages the
+ * full v2 category (`src/server/research-v2.ts`).
+ */
 export async function fetchResearchDesk(): Promise<{
   industry: ResearchReport[];
   market: ResearchReport[];
   economy: ResearchReport[];
   featured: ResearchReport[];
 }> {
-  const FEATURED = [
-    "005930",
-    "000660",
-    "373220",
-    "034020",
-    "005380",
-    "207940",
-    "009540",
-  ];
-
-  const [industry, market, economy, ...featuredLists] = await Promise.all([
-    fetchCategoryResearch("industry", 80).catch(() => [] as ResearchReport[]),
-    fetchCategoryResearch("market", 50).catch(() => [] as ResearchReport[]),
+  const [industry, market, economy] = await Promise.all([
+    fetchCategoryResearch("industry", 40).catch(() => [] as ResearchReport[]),
+    fetchCategoryResearch("market", 40).catch(() => [] as ResearchReport[]),
     fetchCategoryResearch("economy", 40).catch(() => [] as ResearchReport[]),
-    ...FEATURED.map((code) =>
-      getJson<NaverResearchRow[]>(
-        `https://m.stock.naver.com/api/research/stock/${code}`,
-      )
-        .then((rows) =>
-          (rows ?? []).slice(0, 2).map((r) => mapResearchRow(r, "company")),
-        )
-        .catch(() => [] as ResearchReport[]),
-    ),
   ]);
-
-  const featuredRaw = featuredLists.flat();
-  const featured = await enrichReports(
-    sortReportsNewestFirst(featuredRaw)
-      .filter(
-        (r, i, arr) =>
-          arr.findIndex((x) => x.researchId === r.researchId) === i,
-      )
-      .slice(0, 16),
-    10,
-  );
-
-  return { industry, market, economy, featured };
+  return { industry, market, economy, featured: [] };
 }
 
 /** Deep research detail — used on PDF/원문 click & detail sheet open (not list path). */

@@ -353,9 +353,24 @@ async function getText(url: string, headers: HeadersInit): Promise<string | null
   }
 }
 
-let cache: { rev: string; at: number; data: UsStreetPack } | null = null;
-const TTL_MS = 30 * 60 * 1000;
+const packCache = new Map<string, { rev: string; at: number; data: UsStreetPack }>();
+const TTL_MS = 20 * 60 * 1000;
 const CACHE_REV = "kernel-3";
+/** At most 3 symbol pages load at once (F4.5 load control). */
+const MAX_CONCURRENT = 3;
+
+async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
 
 type SymbolPage = {
   notes: UsStreetNote[];
@@ -363,8 +378,21 @@ type SymbolPage = {
   consensus: UsConsensus | null;
 };
 
+const pageCache = new Map<string, { at: number; data: SymbolPage }>();
+
 async function loadSymbolPage(symbol: string): Promise<SymbolPage> {
   const ticker = symbol.trim().toUpperCase();
+  const hit = pageCache.get(ticker);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.data;
+  const data = await loadSymbolPageUncached(ticker);
+  if (data.notes.length || data.consensus || data.headlines.length) {
+    pageCache.set(ticker, { at: Date.now(), data });
+    if (pageCache.size > 120) pageCache.delete(pageCache.keys().next().value!);
+  }
+  return data;
+}
+
+async function loadSymbolPageUncached(ticker: string): Promise<SymbolPage> {
   const [html, target] = await Promise.all([
     getText(`https://finviz.com/quote.ashx?t=${encodeURIComponent(ticker)}`, {
       "User-Agent": UA,
@@ -425,11 +453,26 @@ export async function fetchUsStreetSymbol(symbol: string): Promise<UsStreetPack>
   return data;
 }
 
-export async function fetchUsStreetPack(): Promise<UsStreetPack> {
+function validTicker(t: string): boolean {
+  return /^[A-Z][A-Z0-9.]{0,9}$/.test(t) && !t.startsWith(".") && !t.endsWith(".");
+}
+
+/**
+ * Desk pack for a ticker set (default: US_STREET_SYMBOLS). Callers pass the
+ * first 12 of usWatchlist ∪ US_STREET_SYMBOLS ∪ robotics US names (F4.5);
+ * pages load 3 at a time and are cached for 20 minutes.
+ */
+export async function fetchUsStreetPack(symbols: readonly string[] = US_STREET_SYMBOLS): Promise<UsStreetPack> {
+  const list = [...new Set(symbols.map((x) => x.trim().toUpperCase()).filter(validTicker))].slice(0, 12);
+  const key = list.join(",");
   const now = Date.now();
-  if (cache && cache.rev === CACHE_REV && now - cache.at < TTL_MS) return cache.data;
-  const pages = await Promise.all(US_STREET_SYMBOLS.map((symbol) => loadSymbolPage(symbol)));
+  const hit = packCache.get(key);
+  if (hit && hit.rev === CACHE_REV && now - hit.at < TTL_MS) return hit.data;
+  const pages = await mapLimit(list, MAX_CONCURRENT, (symbol) => loadSymbolPage(symbol));
   const data = packFromPages(pages, "월가 공개 피드를 받지 못했습니다. 등급을 추정해 채우지 않습니다.");
-  if (data.notes.length || data.consensus.length) cache = { rev: CACHE_REV, at: now, data };
+  if (data.notes.length || data.consensus.length) {
+    packCache.set(key, { rev: CACHE_REV, at: now, data });
+    if (packCache.size > 20) packCache.delete(packCache.keys().next().value!);
+  }
   return data;
 }

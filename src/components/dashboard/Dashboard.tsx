@@ -374,7 +374,7 @@ export function Dashboard() {
           </Link>
           <Link
             to="/research"
-            search={{ tab: "market" }}
+            search={{ tab: "invest" }}
             className="group flex items-start gap-2.5 rounded-lg border border-border bg-muted/15 px-3 py-2.5 hover:bg-muted/35 transition-colors"
           >
             <LineChart className="size-4 mt-0.5 text-muted-foreground group-hover:text-foreground" />

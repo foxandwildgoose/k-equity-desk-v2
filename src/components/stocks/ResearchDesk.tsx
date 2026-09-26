@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { UsResearchDesk } from "@/components/stocks/UsResearchDesk";
-import { ExternalLink, Loader2, Building2, Factory, LineChart, Globe2, Search, SlidersHorizontal } from "lucide-react";
+import { ExternalLink, Loader2, Factory, LineChart, Globe2, Search, SlidersHorizontal } from "lucide-react";
 
 export type DeskPack = {
   industry: ResearchReport[];
@@ -31,7 +31,6 @@ const TABS: { id: DeskTab; label: string; icon: typeof Factory; blurb: string }[
   { id: "industry", label: "산업", icon: Factory, blurb: "섹터별 리포트를 바로 골라 읽는 산업 리서치 터미널" },
   { id: "market", label: "시황·전략", icon: LineChart, blurb: "마켓 레이더 · 투자전략 · 수급/스타일 변화" },
   { id: "economy", label: "경제", icon: Globe2, blurb: "환율 · 금리 · 정책 · 거시경제 리서치" },
-  { id: "featured", label: "기업", icon: Building2, blurb: "주요 종목 최신 기업 리포트" },
 ];
 
 function RatingBadge({ rating }: { rating?: string }) {

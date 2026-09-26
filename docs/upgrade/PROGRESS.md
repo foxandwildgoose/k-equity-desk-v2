@@ -39,7 +39,7 @@ mappers accept several candidate field names and stay `unverified`.
 | P0 | done | docs, registry, probe, baseline |
 | P1 | done | kernel, registry, fetch policy, health, UI kit, store v2, D1–D5(name)/D7/D8 |
 | P2 | done | /api/feed, news adapters, /news/kr, /news/us, grouped sidebar, LiveNews paging, US MarketBar |
-| P3 | pending | |
+| P3 | done | research v2 adapter + desk, detail sheet, Δ% rule, pre-resolve; US tiers, Street Moves + CSV, briefing |
 | P4 | pending | |
 | P5 | pending | |
 | P6 | pending | |
@@ -65,6 +65,8 @@ mappers accept several candidate field names and stay `unverified`.
 - F1.6 KR calendar strip omitted (spec: only with a verifiable source). F3.7 US earnings-today not built (Nasdaq calendar JSON unverified).
 - KIS news titles have no public original page; rows link to a Naver news search for the title and say so in the snippet.
 - Naver AI briefing links to https://stock.naver.com/ (no per-briefing page route is documented).
+- 관심종목 research filter covers the first 10 of watchlist ∪ former featured names (v2 accepts ≤ 10 itemCodes per call).
+- Research "페이지" links use finance.naver.com `*_read.naver?nid=` routes (existing app pattern; v2 page routes are undocumented).
 - Client re-scores importance with the viewer's watchlist/keywords (server score is watch-agnostic because `/api/feed` is CDN-cached).
 
 ## Blockers
@@ -85,5 +87,12 @@ mappers accept several candidate field names and stay `unverified`.
 4. Grouped sidebar; LiveNews paging via kernel; MarketBar US segment (delayed); US watchlist + keyword-watch editors on /watchlist.
 5. Gates: typecheck 0 · tests 201 + 161 · ESLint changed 0 errors · build ok · qa:smoke 34/34 · qa:acceptance AT-09/11/12/13 pass (mocked data in the QA harness only).
 
+### P3 — research (done)
+1. `src/lib/research/naver-v2.ts` (tolerant v2 mappers, goal-price sets, Δ% rule, new-coverage heuristic), `src/server/research-v2.ts` (v2 → legacy fallback with path in health, detail + detail-page, briefing strip data, pre-resolve cache 10 min), server fns in market-fns.
+2. `/research` KR: `KrResearchDesk` (7 tabs + 관심종목, date headers, `오늘 · 이번 주 · 전체 totalCount`, 더 보기 by index, industry taxonomy chips, broker filter, briefing strip, KR Street Moves), shared `ResearchCard` (PDF 원문 anchor or popup-safe resolve, 리서치 페이지, 상세) + `ResearchDetailSheet` (extractive bullets, prev/next, broker filter). BrokerReports uses them; stock bundle prefers v2 company list. Fixed 7-stock list removed.
+3. `/research?market=us`: exact scope banner, US research briefing, Street Moves table (filters, sticky header, CSV of visible rows), tier badges (OFFICIAL/PUBLIC/STREET/NEWS), universe = first 12 of usWatchlist ∪ US_STREET_SYMBOLS ∪ robotics US (20-min cache, 3 concurrent). `/us-research`: banner, 기간 filter default 최근 30일, newest-first grids, Exhibit 99 labels.
+4. Robotics classifier (D5/F6.8) + `src/data/robotics.ts` universe data.
+5. Gates: typecheck 0 · tests 201 + 170 · ESLint changed 0 errors · build ok · qa:smoke 32/32 · qa:acceptance AT-15/16(+mobile, fallback)/18/19/20 pass.
+
 ## Next steps
-- P3: research v2 adapter + ResearchDesk rewrite (tabs, strip, cards, pre-resolve, detail sheet), BrokerReports Δ%, US research tiers, Street Moves table + CSV, scope banner, lazy universe.
+- P4: ETF news (`/news/etf` + ETF 뉴스 tab), robotics section (`/robotics` 6 tabs, Federal Register filter, policy chips, companies tables, ETF discovery), cross-links.

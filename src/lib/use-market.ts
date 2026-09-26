@@ -1,4 +1,8 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAppStore } from "@/lib/store";
+import { US_STREET_SYMBOLS } from "@/lib/us-street";
+import { ROBOTICS_US_SYMBOLS } from "@/data/robotics";
 import {
   getMarketQuotes,
   getStockBundle,
@@ -169,11 +173,18 @@ export function useResearchDesk(opts?: { enabled?: boolean }) {
   });
 }
 
-export function useUsStreet(symbol?: string, opts?: { enabled?: boolean }) {
+/** First 12 of usWatchlist ∪ US_STREET_SYMBOLS ∪ robotics US names (F4.5). */
+export function useStreetUniverse(): string[] {
+  const usWatch = useAppStore((s) => s.usWatchlist);
+  return useMemo(() => [...new Set([...usWatch, ...US_STREET_SYMBOLS, ...ROBOTICS_US_SYMBOLS])].slice(0, 12), [usWatch]);
+}
+
+export function useUsStreet(symbol?: string, opts?: { enabled?: boolean; symbols?: string[] }) {
   const ticker = symbol?.trim().toUpperCase() || "";
+  const symbols = ticker ? undefined : opts?.symbols;
   return useQuery({
-    queryKey: ["us-street", "v2", ticker || "desk"],
-    queryFn: () => getUsStreet({ data: ticker ? { symbol: ticker } : {} }),
+    queryKey: ["us-street", "v3", ticker || "desk", symbols?.join(",") ?? ""],
+    queryFn: () => getUsStreet({ data: ticker ? { symbol: ticker } : { symbols } }),
     staleTime: 10 * 60_000,
     enabled: opts?.enabled ?? true,
     refetchOnWindowFocus: false,

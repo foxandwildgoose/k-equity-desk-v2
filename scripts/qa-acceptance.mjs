@@ -109,6 +109,84 @@ async function run(browser, id, fn) {
   }
 }
 
+/**
+ * Mock TanStack server functions by export name. Responses use seroval's
+ * cross-JSON format — the same wire format the Start runtime emits.
+ */
+async function mockServerFns(page, handlers) {
+  const { toCrossJSONAsync } = await import("seroval");
+  await page.route("**/_serverFn/**", async (route) => {
+    const url = new URL(route.request().url());
+    const seg = url.pathname.split("/_serverFn/")[1] ?? "";
+    let exp = "";
+    try {
+      exp = JSON.parse(Buffer.from(seg.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")).export ?? "";
+    } catch {
+      /* not decodable */
+    }
+    const name = exp.replace(/_createServerFn_handler$/, "");
+    const h = handlers[name];
+    if (!h) return route.continue();
+    let payload = null;
+    try {
+      const raw = url.searchParams.get("payload");
+      if (raw) {
+        const { fromJSON } = await import("seroval");
+        payload = fromJSON(JSON.parse(raw));
+      }
+    } catch {
+      /* ignore */
+    }
+    const out = await h(payload?.data ?? payload);
+    if (out && out.__status) return route.fulfill({ status: out.__status, body: "error" });
+    const body = JSON.stringify(await toCrossJSONAsync({ result: out, error: undefined, context: {} }, { refs: new Map() }));
+    await route.fulfill({ status: 200, contentType: "application/json", headers: { "x-tss-serialized": "true" }, body });
+  });
+}
+
+// synthetic fixture (format sample), not market data
+function report(i, extra = {}) {
+  const day = new Date(NOW - Math.floor(i / 4) * 86_400_000 + 9 * 3_600_000).toISOString().slice(0, 10);
+  return {
+    researchId: 900000 - i,
+    code: "005930",
+    nameKo: "삼성전자",
+    title: `[QA 샘플] 리포트 ${i}`,
+    broker: i % 2 ? "가증권" : "나증권",
+    date: day,
+    preview: "QA 샘플 미리보기 문장입니다. 목표주가를 유지한다.",
+    rating: "매수",
+    targetPrice: 100000 + i * 100,
+    category: "company",
+    categoryLabel: "기업",
+    pageUrl: `${BASE}/status/sources?page=${900000 - i}`,
+    summary: "QA 샘플 요약",
+    sectorIds: [],
+    tags: [],
+    hasInvestmentView: true,
+    sourceKind: "naver",
+    sourceLabel: "네이버 리서치 v2",
+    v2Type: "company",
+    summarySource: "preview",
+    ...extra,
+  };
+}
+
+function researchPage(type, index, n, total) {
+  return {
+    type,
+    index,
+    reports: type === "company" ? Array.from({ length: n }, (_, k) => report(index * n + k)) : [],
+    totalCount: type === "company" ? total : 0,
+    hasNext: type === "company" && index < 1,
+    path: "v2",
+    error: null,
+    fetchedAt: iso(0),
+  };
+}
+
+const EMPTY_BRIEFING = { todayCounts: [], up: [], down: [], weeklyHot: [], newCoverage: [], errors: [], fetchedAt: iso(0) };
+
 const browser = await chromium();
 
 await run(browser, "AT-09", async (page) => {
@@ -166,6 +244,121 @@ await run(browser, "AT-13", async (page, ctx) => {
   await page.waitForSelector('[data-feed-id="qa:us2"]', { timeout: 20_000 });
   const bloomberg = await page.$('[data-feed-id="qa:us1"]');
   record("AT-13", !bloomberg && errors.length === 0, `bloomberg row hidden=${!bloomberg} pageErrors=${errors.length}`);
+});
+
+async function researchMocks(page, resolveDelay = 1_200, resolveFails = false) {
+  await mockServerFns(page, {
+    getResearchV2: (d) => researchPage(d?.type ?? "company", d?.index ?? 0, 16, 1234),
+    getResearchBriefing: () => EMPTY_BRIEFING,
+    getResearchV2Detail: () => ({ report: null, bulletsText: "", prev: null, next: null, pdfUrl: null, pageUrl: `${BASE}/status/sources`, summarySource: "none", path: "v2", error: null }),
+    resolveResearchOriginal: async (d) => {
+      await new Promise((r) => setTimeout(r, resolveDelay));
+      if (resolveFails) return { __status: 500 };
+      return { pdfUrl: `${BASE}/status/sources?pdf=${d?.nid}`, pageUrl: `${BASE}/status/sources?page=${d?.nid}` };
+    },
+  });
+}
+
+await run(browser, "AT-15", async (page) => {
+  await researchMocks(page);
+  await page.goto(`${BASE}/research?tab=company`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("[data-research-list] [data-research-id]", { timeout: 20_000 });
+  const read = () => page.$$eval("[data-research-list] [data-research-id]", (els) => els.map((e) => ({ id: Number(e.getAttribute("data-research-id")), t: e.getAttribute("data-published") })));
+  const first = await read();
+  const headers = await page.$$eval("[data-research-list] [data-date-header]", (els) => els.length);
+  const counts = await page.textContent('[data-testid="research-counts"]');
+  await page.click("text=더 보기");
+  await page.waitForFunction((n) => document.querySelectorAll("[data-research-list] [data-research-id]").length > n, first.length, { timeout: 15_000 });
+  const second = await read();
+  const ordered = second.every((r, i) => i === 0 || second[i - 1].t > r.t || (second[i - 1].t === r.t && second[i - 1].id > r.id));
+  const noDup = new Set(second.map((r) => r.id)).size === second.length;
+  record("AT-15", ordered && noDup && headers > 1 && /1,234/.test(counts ?? ""), `rows ${first.length}→${second.length} ordered=${ordered} noDup=${noDup} dateHeaders=${headers} counts="${counts?.trim()}"`);
+});
+
+for (const vp of [
+  { id: "AT-16", w: 1280, h: 900, mobile: false },
+  { id: "AT-16-mobile", w: 390, h: 844, mobile: true },
+]) {
+  await run(browser, vp.id, async (page, ctx) => {
+    await page.setViewportSize({ width: vp.w, height: vp.h });
+    await researchMocks(page);
+    await page.goto(`${BASE}/research?tab=company`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector("[data-research-list] [data-research-id]", { timeout: 20_000 });
+    // Row 14+ is never pre-resolved (only the first 12 are), so the click takes the async path.
+    const target = page.locator("[data-research-list] [data-research-id]").nth(14);
+    await target.scrollIntoViewIfNeeded();
+    const nid = await target.getAttribute("data-research-id");
+    const [popup] = await Promise.all([ctx.waitForEvent("page", { timeout: 10_000 }), target.locator('[data-action="pdf"]').click()]);
+    await popup.waitForURL(/pdf=/, { timeout: 10_000 });
+    const okUrl = popup.url().includes(`pdf=${nid}`);
+    const opener = await popup.evaluate(() => window.opener === null);
+    record(vp.id, okUrl && opener, `async-resolved popup ${popup.url().replace(BASE, "")} opener=null:${opener}`);
+    await popup.close();
+  });
+}
+
+await run(browser, "AT-16-fallback", async (page, ctx) => {
+  await researchMocks(page, 300, true);
+  await page.goto(`${BASE}/research?tab=company`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("[data-research-list] [data-research-id]", { timeout: 20_000 });
+  const target = page.locator("[data-research-list] [data-research-id]").nth(13);
+  await target.scrollIntoViewIfNeeded();
+  const nid = await target.getAttribute("data-research-id");
+  const [popup] = await Promise.all([ctx.waitForEvent("page", { timeout: 10_000 }), target.locator('[data-action="pdf"]').click()]);
+  await popup.waitForURL(/page=/, { timeout: 10_000 });
+  record("AT-16-fallback", popup.url().includes(`page=${nid}`), `resolution failed → research page ${popup.url().replace(BASE, "")}`);
+});
+
+await run(browser, "AT-18", async (page) => {
+  await researchMocks(page);
+  await page.goto(`${BASE}/research?tab=company`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("[data-research-list] [data-research-id]", { timeout: 20_000 });
+  const body = await page.textContent("main");
+  const oldFeatured = /주요 종목 최신 기업 리포트/.test(body ?? "");
+  const hasMore = await page.isVisible("text=더 보기");
+  record("AT-18", !oldFeatured && hasMore, `old 7-stock list text present=${oldFeatured}; company tab paginates (더 보기 visible=${hasMore})`);
+});
+
+// synthetic fixture (format sample), not market data
+const STREET_PACK = {
+  notes: [
+    { id: "n1", symbol: "NVDA", broker: "QA Broker A", action: "Upgrade", actionKo: "상향", rating: "Hold → Buy", target: "$150 → $180", date: "2026-09-25", publishedAt: "2026-09-25T12:00:00.000Z", precision: "day", seq: 2, summary: "QA", pageUrl: "https://finviz.com/quote.ashx?t=NVDA", sourceLabel: "Finviz" },
+    { id: "n2", symbol: "TSLA", broker: "QA Broker B", action: "Downgrade", actionKo: "하향", rating: "Buy → Hold", target: "$300", date: "2026-09-24", publishedAt: "2026-09-24T12:00:00.000Z", precision: "day", seq: 1, summary: "QA", pageUrl: "https://finviz.com/quote.ashx?t=TSLA", sourceLabel: "Finviz" },
+    { id: "n3", symbol: "NVDA", broker: "QA Broker C", action: "Reiterated", actionKo: "유지", rating: "Buy", target: "$170 → $190", date: "2026-09-20", publishedAt: "2026-09-20T12:00:00.000Z", precision: "day", seq: 1, summary: "QA", pageUrl: "https://finviz.com/quote.ashx?t=NVDA", sourceLabel: "Finviz" },
+  ].map((n) => ({ ...n, publishedAt: new Date(NOW - (n.id === "n1" ? 1 : n.id === "n2" ? 2 : 6) * 86_400_000).toISOString() })),
+  headlines: [
+    { id: "h1", symbol: "NVDA", title: "[QA sample] QA Broker A upgrades Nvidia", source: "기사", url: "https://example.com/qa/h1", when: "Today 09:00AM", publishedAt: iso(60), precision: "minute" },
+    { id: "h2", symbol: "TSLA", title: "[QA sample] QA Broker B downgrades Tesla", source: "기사", url: "https://example.com/qa/h2", when: "Yesterday 09:00AM", publishedAt: iso(1500), precision: "minute" },
+  ],
+  consensus: [],
+  note: "QA",
+  fetchedAt: iso(0),
+};
+
+await run(browser, "AT-19", async (page) => {
+  await mockServerFns(page, { getUsStreet: () => STREET_PACK });
+  await page.goto(`${BASE}/research?market=us`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="street-moves"] [data-street-rows] tr', { timeout: 20_000 });
+  const banner = await page.isVisible('[data-testid="us-scope-banner"]');
+  const bannerText = await page.textContent('[data-testid="us-scope-banner"]');
+  const exact = (bannerText ?? "").includes("미국 투자은행 리포트 PDF는 고객 전용으로 공개되지 않습니다.");
+  const links = await page.$$eval("main a[target=_blank]", (as) => as.length);
+  record("AT-19", banner && exact && links > 3, `scope banner=${banner} exactText=${exact} original links=${links}`);
+});
+
+await run(browser, "AT-20", async (page) => {
+  await mockServerFns(page, { getUsStreet: () => STREET_PACK });
+  await page.goto(`${BASE}/research?market=us`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="street-moves"] [data-street-rows] tr', { timeout: 20_000 });
+  const stamps = await page.$$eval('[data-testid="street-moves"] [data-street-rows] tr', (trs) => trs.map((t) => t.getAttribute("data-published")));
+  const sorted = stamps.every((t, i) => i === 0 || stamps[i - 1] >= t);
+  await page.selectOption('[data-testid="street-moves"] select[aria-label="티커"]', "NVDA");
+  const visibleRows = await page.$$eval('[data-testid="street-moves"] [data-street-rows] tr', (trs) => trs.length);
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click('[data-testid="street-csv"]')]);
+  const path = await dl.path();
+  const { readFileSync } = await import("node:fs");
+  const csv = readFileSync(path, "utf8").replace(/^\uFEFF/, "").trim().split("\n");
+  record("AT-20", sorted && csv.length - 1 === visibleRows && /street-moves-\d{8}-\d{4}\.csv$/.test(dl.suggestedFilename()), `dateDesc=${sorted} visible=${visibleRows} csvRows=${csv.length - 1} file=${dl.suggestedFilename()}`);
 });
 
 await browser.close();

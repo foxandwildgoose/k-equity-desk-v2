@@ -163,6 +163,9 @@ export const getStockBundle = createServerFn({ method: "GET" })
       market: (uni?.market ?? "KOSPI") as "KOSPI" | "KOSDAQ",
     };
 
+    const v2CompanyP = import("@/server/research-v2")
+      .then((m) => m.fetchResearchV2List({ type: "company", itemCodes: [code], size: 30 }))
+      .catch(() => null);
     const [basic, quotes, flow, researchPack, news, discBundle] =
       await Promise.all([
         fetchStockBasic(code).catch(() => null),
@@ -233,6 +236,11 @@ export const getStockBundle = createServerFn({ method: "GET" })
       if (basic.marketStatus) quote.marketStatus = basic.marketStatus;
     }
 
+    // F2.1: v2 company list first (full, paged source); legacy list as fallback.
+    const v2Company = await v2CompanyP;
+    if (v2Company && v2Company.path === "v2" && v2Company.reports.length) {
+      researchPack.company = v2Company.reports;
+    }
     const payload = {
       meta,
       quote,
@@ -309,13 +317,18 @@ export const getValuationSeries = createServerFn({ method: "GET" })
   });
 
 export const getUsStreet = createServerFn({ method: "GET" })
-  .validator(z.object({ symbol: z.string().trim().max(12).optional() }))
+  .validator(
+    z.object({
+      symbol: z.string().trim().max(12).optional(),
+      symbols: z.array(z.string().trim().regex(/^[A-Za-z][A-Za-z0-9.]{0,9}$/)).max(12).optional(),
+    }),
+  )
   .handler(async ({ data }) => {
     const { emptyUsStreetPack, fetchUsStreetPack, fetchUsStreetSymbol } = await import("@/lib/us-street");
     const symbol = data.symbol?.trim();
     try {
       if (symbol) return await fetchUsStreetSymbol(symbol);
-      return await fetchUsStreetPack();
+      return await fetchUsStreetPack(data.symbols?.length ? data.symbols : undefined);
     } catch {
       return emptyUsStreetPack("월가 공개 피드를 받지 못했습니다. 등급을 추정해 채우지 않습니다.");
     }
@@ -781,3 +794,45 @@ export const getUsOfficialReport = createServerFn({ method: "GET" })
     return fetchUsOfficialReport(data.id);
   });
 
+
+// ── KR research v2 (F2) ────────────────────────────────────────────────
+const V2_TYPES = ["market", "company", "industry", "invest", "economy", "debenture"] as const;
+
+export const getResearchV2 = createServerFn({ method: "GET" })
+  .validator(
+    z.object({
+      type: z.enum(V2_TYPES),
+      index: z.number().int().min(0).max(200).default(0),
+      size: z.number().int().min(1).max(50).default(20),
+      itemCodes: z.array(z.string().regex(/^[0-9A-Z]{6}$/)).max(10).optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { fetchResearchV2List } = await import("@/server/research-v2");
+    return fetchResearchV2List({ type: data.type, index: data.index, size: data.size, itemCodes: data.itemCodes });
+  });
+
+export const getResearchV2Detail = createServerFn({ method: "GET" })
+  .validator(
+    z.object({
+      type: z.enum(V2_TYPES),
+      nid: z.number().int().positive(),
+      itemCode: z.string().regex(/^[0-9A-Z]{6}$/).optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { fetchResearchV2Detail } = await import("@/server/research-v2");
+    return fetchResearchV2Detail(data.type, data.nid, data.itemCode);
+  });
+
+export const resolveResearchOriginal = createServerFn({ method: "GET" })
+  .validator(z.object({ type: z.enum(V2_TYPES), nid: z.number().int().positive() }))
+  .handler(async ({ data }) => {
+    const { resolveResearchOriginal: resolve } = await import("@/server/research-v2");
+    return resolve(data.type, data.nid);
+  });
+
+export const getResearchBriefing = createServerFn({ method: "GET" }).handler(async () => {
+  const { fetchResearchBriefing } = await import("@/server/research-v2");
+  return fetchResearchBriefing();
+});

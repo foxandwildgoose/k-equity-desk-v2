@@ -12,8 +12,8 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [x] D2 (M) popup-safe original opening (sync `window.open("about:blank")` in click)
 - [x] D3 (M) KRW price scales integer + separators
 - [x] D4 (M) Lightweight Charts NOTICE + visible TradingView link
-- [~] D5 (M) robotics classifier: bare AI/인공지능 only with robot term; 클로봇 nameEn "CLOBOT"
-- [ ] D6 (M) no hard caps passed off as "latest" (research 80/50/40, 7-stock 기업 tab, US 6/10 universes)
+- [x] D5 (M) robotics classifier: bare AI/인공지능 only with robot term; 클로봇 nameEn "CLOBOT"
+- [x] D6 (M) no hard caps passed off as "latest" (research 80/50/40, 7-stock 기업 tab, US 6/10 universes)
 - [x] D7 (M) SEC UA from `SEC_USER_AGENT`; `SEC UA 미설정` in health when unset
 - [x] D8 (M) README env section → `docs/upgrade/ENVIRONMENT.md`
 - [ ] D9 (M) `ExportDesk.tsx` hook hoisted (Rules of Hooks)
@@ -49,15 +49,15 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [~] F1.6 (S) KR calendar strip only with verifiable source, else omitted — omitted: no verifiable KR calendar source (documented)
 
 ## F2 KR Research `/research` KR + BrokerReports (P3)
-- [ ] F2.1 (M) research v2 six categories w/ index paging + totalCount; legacy fallback; adapter path in health; Hankyung consensus only if verified (login → disable)
-- [ ] F2.2 (M) tabs `전체 · 기업 · 산업 · 시황/전략 · 경제 · 채권 · 데일리`; full company category; `관심종목` filter
-- [ ] F2.3 (M) compareNewestFirst (date then nid desc); date headers; `오늘 n건 · 이번 주 m건 · 전체 totalCount`; 더 보기 next index
-- [ ] F2.4 (M) briefing strip: today count per category; 목표주가 상향/하향 TOP (goal-price-changed); 주간 인기 (weekly-hot); 신규 커버리지 (heuristic label)
-- [ ] F2.5 (M) card: category, broker, date; ticker link, rating, TP; Δ% only with fetched prior same-broker report; extractive summary + summarySource label; buttons `PDF 원문` · `리서치 페이지` · `상세`
-- [ ] F2.6 (M) open originals: anchor if pdfUrl known; else sync `window.open("about:blank")` → resolve → `opener=null; location.replace`; fallback research page; null → toast w/ link; pre-resolve first 12 visible (IntersectionObserver, concurrency 3, server cache 10 min)
-- [ ] F2.7 (M) detail sheet: extractive bullets, rating/TP, prev/next same ticker (detail-page), PDF + page links, broker filter
-- [ ] F2.8 (S) KR Street Moves for watchlist (latest per broker, date/broker/rating/TP/Δ)
-- [ ] F2.9 (S) industry filter via v2 industryTypes if verified, else fixed taxonomy
+- [x] F2.1 (M) research v2 six categories w/ index paging + totalCount; legacy fallback; adapter path in health; Hankyung consensus only if verified (login → disable)
+- [x] F2.2 (M) tabs `전체 · 기업 · 산업 · 시황/전략 · 경제 · 채권 · 데일리`; full company category; `관심종목` filter
+- [x] F2.3 (M) compareNewestFirst (date then nid desc); date headers; `오늘 n건 · 이번 주 m건 · 전체 totalCount`; 더 보기 next index
+- [x] F2.4 (M) briefing strip: today count per category; 목표주가 상향/하향 TOP (goal-price-changed); 주간 인기 (weekly-hot); 신규 커버리지 (heuristic label)
+- [x] F2.5 (M) card: category, broker, date; ticker link, rating, TP; Δ% only with fetched prior same-broker report; extractive summary + summarySource label; buttons `PDF 원문` · `리서치 페이지` · `상세`
+- [x] F2.6 (M) open originals: anchor if pdfUrl known; else sync `window.open("about:blank")` → resolve → `opener=null; location.replace`; fallback research page; null → toast w/ link; pre-resolve first 12 visible (IntersectionObserver, concurrency 3, server cache 10 min)
+- [x] F2.7 (M) detail sheet: extractive bullets, rating/TP, prev/next same ticker (detail-page), PDF + page links, broker filter
+- [x] F2.8 (S) KR Street Moves for watchlist (latest per broker, date/broker/rating/TP/Δ)
+- [~] F2.9 (S) industry filter via v2 industryTypes if verified, else fixed taxonomy — v2 industryTypes unverified offline → fixed taxonomy chips used
 
 ## F3 US News `/news/us` (P2)
 - [x] F3.1 (M) Bloomberg RSS (A4) + GN `site:bloomberg.com when:1d`; naver worldNews + focus 403; Fed press RSS; SEC 8-K Atom (tier 1, ticker via CIK map) if verified; Finviz/Nasdaq ratings as kind rating; CNBC/MarketWatch/Yahoo if verified; GN EN `stock market today`,`S&P 500`,`Nasdaq`,`Treasury yields` (`when:1d`); optional Finnhub
@@ -69,13 +69,13 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [~] F3.7 (C) US earnings-today (Nasdaq calendar JSON) if verified — not built: Nasdaq calendar JSON unverified offline
 
 ## F4 US Research `/research?market=us` + `/us-research` (P3)
-- [ ] F4.1 (M) Korean scope banner (exact text)
-- [ ] F4.2 (M) origin tiers w/ badges: OFFICIAL, PUBLIC_RESEARCH (verified-public registry only), STREET, NEWS
-- [ ] F4.3 (M) newest first: UsResearchDesk notes by Finviz timestamp, headlines by parsed time; ResearchHome featured/pool/grids by publishedAt; period default `최근 30일`
-- [ ] F4.4 (M) Street Moves table: date, ticker, broker, action (Upgrade/Downgrade/Initiate/Reiterate/PT change), rating from→to, PT from→to + Δ% (only both in row), links; filters ticker/broker/action/기간; sticky header; CSV export
-- [ ] F4.5 (M) Street universe first 12 of usWatchlist ∪ US_STREET_SYMBOLS ∪ robotics US, eager, cached 20 min; others lazy, concurrency 3; official eager OFFICIAL_UNIVERSE(6), others on demand via getUsOfficialCompany
-- [ ] F4.6 (M) every card `원문` + `PDF`/`Exhibit 99` where applicable; lazy URLs use F2.6 pattern
-- [ ] F4.7 (S) "US 리서치 브리핑" strip: tier counts today/week, top up/downgrades, day's filings, next macro releases
+- [x] F4.1 (M) Korean scope banner (exact text)
+- [x] F4.2 (M) origin tiers w/ badges: OFFICIAL, PUBLIC_RESEARCH (verified-public registry only), STREET, NEWS
+- [x] F4.3 (M) newest first: UsResearchDesk notes by Finviz timestamp, headlines by parsed time; ResearchHome featured/pool/grids by publishedAt; period default `최근 30일`
+- [x] F4.4 (M) Street Moves table: date, ticker, broker, action (Upgrade/Downgrade/Initiate/Reiterate/PT change), rating from→to, PT from→to + Δ% (only both in row), links; filters ticker/broker/action/기간; sticky header; CSV export
+- [x] F4.5 (M) Street universe first 12 of usWatchlist ∪ US_STREET_SYMBOLS ∪ robotics US, eager, cached 20 min; others lazy, concurrency 3; official eager OFFICIAL_UNIVERSE(6), others on demand via getUsOfficialCompany
+- [x] F4.6 (M) every card `원문` + `PDF`/`Exhibit 99` where applicable; lazy URLs use F2.6 pattern
+- [x] F4.7 (S) "US 리서치 브리핑" strip: tier counts today/week, top up/downgrades, day's filings, next macro releases
 
 ## F5 KR ETF News `/news/etf` + `/etfs` "ETF 뉴스" tab (P4)
 - [ ] F5.1 (M) extend `etf-news.ts` (keep stage logic): GN queries (8) + issuer brands (10); Hankyung finance filtered; naver news search `query=ETF` if verified
@@ -91,7 +91,7 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [ ] F6.5 (M) companies: KR table (name, code, segment, exposure, price, 1D%, 52w pos, mcap, latest news time, latest research date → /stock), US table (Yahoo → /us), row → news drawer newest first
 - [ ] F6.6 (M) ETF: KR via name regex from live list (code, name, price, 1D%, volume, mcap → /etfs), US seed BOTZ/ROBO/ARKQ/KOID/HUMN/BOTT verified
 - [ ] F6.7 (M) research: KR v2 industry (robot kw) + v2 company for robot tickers (≤10 itemCodes/call) + Hankyung if verified; US PUBLIC_RESEARCH robotics, Street Moves, OFFICIAL filings; extractive, 원문, newest first
-- [ ] F6.8 (M) taxonomy keywords list; bare AI/인공지능 only with robot term; tests updated
+- [x] F6.8 (M) taxonomy keywords list; bare AI/인공지능 only with robot term; tests updated
 - [ ] F6.9 (M) `/industry/robotics` → `/robotics` link; sidebar sector row links `/robotics`; dashboard card (P7)
 
 ## F7 Pro charts (P6)
