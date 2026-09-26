@@ -16,7 +16,7 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [x] D6 (M) no hard caps passed off as "latest" (research 80/50/40, 7-stock 기업 tab, US 6/10 universes)
 - [x] D7 (M) SEC UA from `SEC_USER_AGENT`; `SEC UA 미설정` in health when unset
 - [x] D8 (M) README env section → `docs/upgrade/ENVIRONMENT.md`
-- [ ] D9 (M) `ExportDesk.tsx` hook hoisted (Rules of Hooks)
+- [x] D9 (M) `ExportDesk.tsx` hook hoisted (Rules of Hooks)
 
 ## B0 Foundations (P1, all M)
 - [x] B0.1 `src/lib/feed/types.ts` FeedItem/ResearchItem + mappers from ResearchReport/NewsItem (no consumer breakage)
@@ -95,24 +95,24 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [~] F6.9 (M) `/industry/robotics` → `/robotics` link; sidebar sector row links `/robotics`; dashboard card (P7) — links done in P4, card pending P7
 
 ## F7 Pro charts (P6)
-- [ ] F7.1 (M) `createProChart`/`useProChart` in `src/components/charts/core/`; CSS-var theme, `usePriceColors`; `formatters.ts` (KRW p0/minMove1/separators; USD 2dp, 4 < $1; %, volume 만/억 KR, K/M/B US); `krxTickSize(price, instrument)` w/ tests (verified table; ETF/ETN separate)
-- [ ] F7.2 (M) `ChartShell`: toolbar slot, HUD, legend w/ visibility toggles, status line (source, delayed/realtime, last update), fullscreen, PNG (`takeScreenshot`) + CSV of visible bars, `?` shortcut help + one-key tools
-- [ ] F7.3 (M) `attribution.ts` NOTICE + visible footer link; invariant test
-- [ ] F7.4 (M) crosshair + time-range sync helper
-- [ ] F7.5 (M) types candles/hollow/OHLC bars/Heikin-Ashi (pure + test)/line/area/baseline; scales normal/log/percent/indexed-100
-- [ ] F7.6 (M) indicators pure + known-value tests; param dialog; searchable catalog add/remove; saved per layout: SMA/EMA/WMA/HMA multi; Bollinger/Keltner/Donchian/Ichimoku; PSAR/Supertrend; session VWAP + Anchored VWAP; Volume+MA, OBV, Volume Profile (visible range, right histogram, POC/VAH/VAL); RSI, Stoch, StochRSI, MACD, ADX/DMI, CCI, MFI, Williams %R; ATR; Pivots (Classic/Fib/Camarilla), 52w hi/lo
-- [ ] F7.7 (M) drawing tools (trend, ray, extended, h-line/ray, vertical, parallel channel, rectangle, fib retr/ext, measure, long/short position, text, arrow) as primitives; magnet/snap; select/move/handles; color/width; lock/hide; object manager; undo/redo Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z
-- [ ] F7.8 (M) compare overlay ≤3 symbols KR/US, percent-from-start, legend last values
-- [ ] F7.9 (M) `/chart?symbols=…&layout=1|2|4` workspace, synced crosshair, optional synced interval, per-pane symbol search; fullscreen opens it; persistence `ked:chart:v2:{market}:{code}:{interval}` + named templates; migrate `ke-chart-draw:{code}` once w/ test
-- [ ] F7.10 (M) event overlays w/ toggles: disclosures, news clusters (count marker/bar → list), research TP changes, US div/splits
-- [ ] F7.11 (M) alerts: h-line crossing up/down once/every; RSI 70/30 + MA cross; client-evaluated; fired via Live Wire; managed in drawer
-- [ ] F7.12 (M) bar replay (daily/weekly): start bar, play/pause/step, 1–10×; indicators only on replayed data
-- [ ] F7.13 (M) extended hours shading only when bars exist (US includePrePost; KR NXT if present); session-break lines; never synthesize bars
-- [ ] F7.14 (M) mobile: toolbar → bottom sheet, long-press crosshair, 44 px targets, no h-overflow 390 px
-- [ ] F7.15 (M) lazy memoized indicators, 10k bar cap, no long task > 200 ms @5k daily bars
-- [ ] F7.16 (M) Tier B (ValuationBand, ValuationHistory, InvestorFlow, ExportDual) onto core: formatters, HUD, legend, fullscreen, PNG/CSV, range presets, log/percent where sensible, status line, pane crosshair sync; tests green
-- [ ] F7.17 (M) Tier C (ExportDesk BarChart, Sparkline): title, units, source/as-of, accessible tooltips/aria, PNG/CSV where sensible (+ D9)
-- [ ] F7.18 (C) optional TradingView widget tab on `/us/$symbol` only, lazy, attribution kept, labeled `지연 시세 · TradingView 제공`
+- [x] F7.1 (M) `createProChart`/`useProChart` in `src/components/charts/core/`; CSS-var theme, `usePriceColors`; `formatters.ts` (KRW p0/minMove1/separators; USD 2dp, 4 < $1; %, volume 만/억 KR, K/M/B US); `krxTickSize(price, instrument)` w/ tests (verified table; ETF/ETN separate)
+- [x] F7.2 (M) `ChartShell`: toolbar slot, HUD, legend w/ visibility toggles, status line (source, delayed/realtime, last update), fullscreen, PNG (`takeScreenshot`) + CSV of visible bars, `?` shortcut help + one-key tools
+- [x] F7.3 (M) `attribution.ts` NOTICE + visible footer link; invariant test
+- [x] F7.4 (M) crosshair + time-range sync helper
+- [x] F7.5 (M) types candles/hollow/OHLC bars/Heikin-Ashi (pure + test)/line/area/baseline; scales normal/log/percent/indexed-100
+- [x] F7.6 (M) indicators pure + known-value tests; param dialog; searchable catalog add/remove; saved per layout: SMA/EMA/WMA/HMA multi; Bollinger/Keltner/Donchian/Ichimoku; PSAR/Supertrend; session VWAP + Anchored VWAP; Volume+MA, OBV, Volume Profile (visible range, right histogram, POC/VAH/VAL); RSI, Stoch, StochRSI, MACD, ADX/DMI, CCI, MFI, Williams %R; ATR; Pivots (Classic/Fib/Camarilla), 52w hi/lo
+- [x] F7.7 (M) drawing tools (trend, ray, extended, h-line/ray, vertical, parallel channel, rectangle, fib retr/ext, measure, long/short position, text, arrow) as primitives; magnet/snap; select/move/handles; color/width; lock/hide; object manager; undo/redo Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z
+- [x] F7.8 (M) compare overlay ≤3 symbols KR/US, percent-from-start, legend last values
+- [x] F7.9 (M) `/chart?symbols=…&layout=1|2|4` workspace, synced crosshair, optional synced interval, per-pane symbol search; fullscreen opens it; persistence `ked:chart:v2:{market}:{code}:{interval}` + named templates; migrate `ke-chart-draw:{code}` once w/ test
+- [x] F7.10 (M) event overlays w/ toggles: disclosures, news clusters (count marker/bar → list), research TP changes, US div/splits
+- [~] F7.11 (M) alerts: h-line crossing up/down once/every; RSI 70/30 + MA cross; client-evaluated; fired via Live Wire; managed in drawer — evaluated on each chart data refresh (the KIS stream updates quote caches, not chart bars); listed in the Live Wire drawer + /settings/alerts
+- [x] F7.12 (M) bar replay (daily/weekly): start bar, play/pause/step, 1–10×; indicators only on replayed data
+- [x] F7.13 (M) extended hours shading only when bars exist (US includePrePost; KR NXT if present); session-break lines; never synthesize bars
+- [x] F7.14 (M) mobile: toolbar → bottom sheet, long-press crosshair, 44 px targets, no h-overflow 390 px
+- [x] F7.15 (M) lazy memoized indicators, 10k bar cap, no long task > 200 ms @5k daily bars
+- [x] F7.16 (M) Tier B (ValuationBand, ValuationHistory, InvestorFlow, ExportDual) onto core: formatters, HUD, legend, fullscreen, PNG/CSV, range presets, log/percent where sensible, status line, pane crosshair sync; tests green
+- [x] F7.17 (M) Tier C (ExportDesk BarChart, Sparkline): title, units, source/as-of, accessible tooltips/aria, PNG/CSV where sensible (+ D9)
+- [ ] F7.18 (C) optional TradingView widget tab on `/us/$symbol` only, lazy, attribution kept, labeled `지연 시세 · TradingView 제공` — not built (COULD; left out to keep the chart surface on lightweight-charts only)
 
 ## F8 Live Wire (P5)
 - [x] F8.1 (M) `GET /api/wire?regions=KR,US` newest 100, canonical sorted regions, TTL table, cluster+score, Cache-Control `public, s-maxage=20, stale-while-revalidate=40`, 8 s budget, partial
@@ -148,5 +148,5 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - Research: AT-15 KR tabs newest-first, date headers, totalCount, 더 보기 · AT-16 `PDF 원문` popup-safe (Playwright popup, mobile too) · AT-17 TP strip up/down; Δ% only both sourced · AT-18 7-stock list gone; company tab paginates · AT-19 US notes/headlines/official newest-first; banner; original links · AT-20 Street Moves date-desc; CSV = visible rows · AT-21 "AI 반도체" not robotics
 - ETF/Robotics: AT-22 ETF matches show code/price/volume → `/etfs/$code`; stage chips on fixtures · AT-23 robotics overview tiles w/ sources, empty w/ reason · AT-24 robot ETF regex matcher fixture · AT-25 unresolved symbols hidden + listed in health · AT-26 Federal Register filter drops premerger/early-termination; keeps robotics/Section 232 · AT-27 policy chips only on keyword presence · AT-28 `/industry/robotics` → `/robotics`; CLOBOT — P4: AT-22/23/25/28 pass in `qa:acceptance` (mocked fixtures in the harness only); AT-24/26/27 unit tests (`src/lib/robotics/robotics.test.ts`, `src/lib/etf-news.test.ts`)
 - Live Wire: AT-29 single leader polls · AT-30 no permission prompt on load · AT-31 12 items/10 min → ≤5 + 1 digest · AT-32 quiet hours suppress OS, badge still updates · AT-33 price alert fires once on cross · AT-34 SSE closes by 240 s, client reconnects — P5: AT-29/30/32/34 pass in `qa:acceptance`; AT-31/32/33 unit tests (`src/lib/wire/live-wire.test.ts`)
-- Charts: AT-35 indicator known values · AT-36 drawings CRUD/lock/hide/undo/redo/persist · AT-37 compare % from first visible bar · AT-38 2×2 crosshair sync · AT-39 key format + migration · AT-40 replay hides future, no lookahead · AT-41 PNG/CSV names w/ symbol + timestamp · AT-42 mobile toolbar sheet, no h-scroll · AT-43 Tier B HUD/fullscreen/export/status; tests pass · AT-44 no chart without source/as-of
+- Charts: AT-35 indicator known values · AT-36 drawings CRUD/lock/hide/undo/redo/persist · AT-37 compare % from first visible bar · AT-38 2×2 crosshair sync · AT-39 key format + migration · AT-40 replay hides future, no lookahead · AT-41 PNG/CSV names w/ symbol + timestamp · AT-42 mobile toolbar sheet, no h-scroll · AT-43 Tier B HUD/fullscreen/export/status; tests pass · AT-44 no chart without source/as-of — P6: AT-36/38/41/42/43/44 + F7.15 perf (5,000 bars, 0 long tasks) pass in `qa:acceptance`; AT-35/37/39/40 unit tests (`chart-indicators.test.ts`, `src/lib/charts/charts.test.ts`); AT-33 in `live-wire.test.ts`
 - Final: AT-45 RISK_DISCLAIMER + per-item sources on new pages · AT-46 AI UI absent when unset; uncited bullets rejected · AT-47 existing routes render; KIS/ETF holdings/export desk/disclosures unchanged except fixes · AT-48 Vercel rules (no FS writes, no fn > 10 s normal)

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ChartRouteImport } from './routes/chart'
 import { Route as DisclosuresRouteImport } from './routes/disclosures'
 import { Route as EtfsRouteImport } from './routes/etfs'
 import { Route as ExportDeskRouteImport } from './routes/export-desk'
@@ -38,6 +39,11 @@ import { Route as UsSymbolRouteImport } from './routes/us.$symbol'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChartRoute = ChartRouteImport.update({
+  id: '/chart',
+  path: '/chart',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DisclosuresRoute = DisclosuresRouteImport.update({
@@ -163,6 +169,7 @@ const UsSymbolRoute = UsSymbolRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/chart': typeof ChartRoute
   '/disclosures': typeof DisclosuresRoute
   '/etfs': typeof EtfsRouteWithChildren
   '/export-desk': typeof ExportDeskRoute
@@ -190,6 +197,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/chart': typeof ChartRoute
   '/disclosures': typeof DisclosuresRoute
   '/export-desk': typeof ExportDeskRoute
   '/research': typeof ResearchRoute
@@ -216,6 +224,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/chart': typeof ChartRoute
   '/disclosures': typeof DisclosuresRoute
   '/etfs': typeof EtfsRouteWithChildren
   '/export-desk': typeof ExportDeskRoute
@@ -245,6 +254,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/chart'
     | '/disclosures'
     | '/etfs'
     | '/export-desk'
@@ -272,6 +282,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/chart'
     | '/disclosures'
     | '/export-desk'
     | '/research'
@@ -297,6 +308,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/chart'
     | '/disclosures'
     | '/etfs'
     | '/export-desk'
@@ -325,6 +337,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ChartRoute: typeof ChartRoute
   DisclosuresRoute: typeof DisclosuresRoute
   EtfsRoute: typeof EtfsRouteWithChildren
   ExportDeskRoute: typeof ExportDeskRoute
@@ -354,6 +367,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chart': {
+      id: '/chart'
+      path: '/chart'
+      fullPath: '/chart'
+      preLoaderRoute: typeof ChartRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/disclosures': {
@@ -555,6 +575,7 @@ const UsResearchRouteWithChildren = UsResearchRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ChartRoute: ChartRoute,
   DisclosuresRoute: DisclosuresRoute,
   EtfsRoute: EtfsRouteWithChildren,
   ExportDeskRoute: ExportDeskRoute,

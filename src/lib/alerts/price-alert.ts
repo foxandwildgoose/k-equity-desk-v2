@@ -39,3 +39,47 @@ export function evaluateAlertsFor(alerts: readonly PriceAlert[], market: "KR" | 
   });
   return { fired, alerts: out };
 }
+
+/**
+ * Indicator alerts (F7.11): RSI crossing 70/30 and moving-average crosses,
+ * detected between the last two finite values. Returns the direction or null.
+ */
+export function crossOfLevel(prev: number | null | undefined, cur: number | null | undefined, level: number): "up" | "down" | null {
+  if (prev == null || cur == null || !Number.isFinite(prev) || !Number.isFinite(cur)) return null;
+  if (prev < level && cur >= level) return "up";
+  if (prev > level && cur <= level) return "down";
+  return null;
+}
+
+export function crossOfLines(fastPrev: number | null | undefined, slowPrev: number | null | undefined, fastCur: number | null | undefined, slowCur: number | null | undefined): "up" | "down" | null {
+  if ([fastPrev, slowPrev, fastCur, slowCur].some((v) => v == null || !Number.isFinite(v as number))) return null;
+  const before = (fastPrev as number) - (slowPrev as number);
+  const after = (fastCur as number) - (slowCur as number);
+  if (before < 0 && after >= 0) return "up";
+  if (before > 0 && after <= 0) return "down";
+  return null;
+}
+
+/** Evaluate an indicator alert on the latest bars; `seenBarKey` prevents re-firing on the same bar. */
+export function evaluateIndicatorAlert(
+  alert: PriceAlert,
+  input: { rsi?: readonly (number | null)[]; fast?: readonly (number | null)[]; slow?: readonly (number | null)[]; barKey: string },
+  nowIso: string,
+): { fired: boolean; direction: "up" | "down" | null; next: PriceAlert } {
+  if (!alert.active) return { fired: false, direction: null, next: alert };
+  const lastTwo = (s?: readonly (number | null)[]) => (s && s.length >= 2 ? [s[s.length - 2], s[s.length - 1]] : [null, null]);
+  let dir: "up" | "down" | null = null;
+  if (alert.kind === "rsi-cross" && alert.level != null) {
+    const [a, b] = lastTwo(input.rsi);
+    dir = crossOfLevel(a, b, alert.level);
+  } else if (alert.kind === "ma-cross") {
+    const [fa, fb] = lastTwo(input.fast);
+    const [sa, sb] = lastTwo(input.slow);
+    dir = crossOfLines(fa, sa, fb, sb);
+  }
+  const already = alert.lastFiredAt != null && (alert as PriceAlert & { lastBarKey?: string }).lastBarKey === input.barKey;
+  const fired = dir != null && !already && (alert.direction === "any" || alert.direction === dir);
+  if (!fired) return { fired: false, direction: null, next: alert };
+  const next = { ...alert, lastFiredAt: nowIso, active: alert.repeat === "once" ? false : true, lastBarKey: input.barKey } as PriceAlert;
+  return { fired: true, direction: dir, next };
+}

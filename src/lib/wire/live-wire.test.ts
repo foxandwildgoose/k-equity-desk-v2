@@ -140,3 +140,21 @@ test("AT-33 chart price alert fires once when the price crosses the line", () =>
   assert.equal(e.fired, true);
   assert.equal(e.direction, "down");
 });
+
+test("F7.11 indicator alerts: RSI 70/30 and MA crosses fire once per bar", async () => {
+  const { crossOfLevel, crossOfLines, evaluateIndicatorAlert } = await import("../alerts/price-alert.ts");
+  assert.equal(crossOfLevel(68, 71, 70), "up");
+  assert.equal(crossOfLevel(32, 29, 30), "down");
+  assert.equal(crossOfLevel(71, 72, 70), null);
+  assert.equal(crossOfLines(9, 10, 11, 10), "up");
+  assert.equal(crossOfLines(11, 10, 9, 10), "down");
+  const base: PriceAlert = { id: "r", market: "KR", code: "005930", kind: "rsi-cross", level: 70, direction: "any", repeat: "every", active: true, createdAt: "2026-09-25T00:00:00.000Z" };
+  const r1 = evaluateIndicatorAlert(base, { rsi: [65, 72], barKey: "2026-09-25" }, "t1");
+  assert.equal(r1.fired, true);
+  const r2 = evaluateIndicatorAlert(r1.next, { rsi: [65, 72], barKey: "2026-09-25" }, "t2");
+  assert.equal(r2.fired, false, "same bar never re-fires");
+  const ma: PriceAlert = { ...base, id: "m", kind: "ma-cross", level: undefined, fast: 20, slow: 60, direction: "up", repeat: "once" };
+  const m1 = evaluateIndicatorAlert(ma, { fast: [9, 11], slow: [10, 10], barKey: "b" }, "t");
+  assert.equal(m1.fired, true);
+  assert.equal(m1.next.active, false);
+});

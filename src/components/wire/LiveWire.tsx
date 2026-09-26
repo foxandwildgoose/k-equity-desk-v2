@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Bell, BellRing, Pause, Play, Settings2 } from "lucide-react";
+import { Bell, BellRing, Pause, Play, Settings2, Trash2 } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { FeedList } from "@/components/feed/FeedList";
@@ -176,6 +176,7 @@ export function LiveWireDrawer() {
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto scroll-thin p-2.5">
+          <ChartAlertsSection />
           <FeedList
             items={visible}
             emptyReason={reason}
@@ -215,5 +216,36 @@ export function TickerTape() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Chart alerts (F7.11) listed and managed in the Live Wire drawer. */
+function ChartAlertsSection() {
+  const alerts = useAppStore((s) => s.alertSettings.priceAlerts);
+  const remove = useAppStore((s) => s.removePriceAlert);
+  if (!alerts.length) return null;
+  return (
+    <details className="mb-2 rounded-lg border border-border bg-muted/15 p-2 text-[11px]" data-testid="wire-chart-alerts">
+      <summary className="cursor-pointer font-semibold">
+        차트 알림 {alerts.filter((a) => a.active).length}/{alerts.length}
+      </summary>
+      <ul className="mt-1.5 space-y-1">
+        {alerts.map((a) => (
+          <li key={a.id} className="flex items-center gap-2">
+            <Link
+              to={a.market === "KR" ? "/stock/$ticker" : "/us/$symbol"}
+              params={a.market === "KR" ? { ticker: a.code } : { symbol: a.code }}
+              className="min-w-0 flex-1 truncate hover:underline"
+            >
+              {a.name ?? a.code} · {a.kind === "price-cross" ? `가격 ${a.level?.toLocaleString("ko-KR")}` : a.kind === "rsi-cross" ? `RSI ${a.level}` : `이평 ${a.fast}/${a.slow}`} · {a.active ? "대기" : "완료"}
+            </Link>
+            {a.lastFiredAt && <TimeStamp publishedAt={a.lastFiredAt} precision="second" className="text-muted-foreground" />}
+            <button type="button" onClick={() => remove(a.id)} className="inline-flex size-9 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="알림 삭제">
+              <Trash2 className="size-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

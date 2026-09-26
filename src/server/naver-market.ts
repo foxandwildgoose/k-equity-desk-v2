@@ -763,6 +763,10 @@ async function fetchMinuteOhlc(
 
 type YahooChartResult = {
   timestamp?: number[];
+  events?: {
+    dividends?: Record<string, { amount?: number; date?: number }>;
+    splits?: Record<string, { date?: number; numerator?: number; denominator?: number; splitRatio?: string }>;
+  };
   indicators?: {
     quote?: {
       open?: (number | null)[];
@@ -837,11 +841,11 @@ function parseUsYahooBars(
   return raw;
 }
 
-async function fetchYahooChart(symbol: string, interval: string, range: string): Promise<YahooChartResult | null> {
+async function fetchYahooChart(symbol: string, interval: string, range: string, opts: { prePost?: boolean; events?: boolean } = {}): Promise<YahooChartResult | null> {
   for (const host of ["query1", "query2"]) {
     try {
       const data = await getJson<{ chart?: { result?: YahooChartResult[] } }>(
-        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includeAdjustedClose=true&includePrePost=false`,
+        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includeAdjustedClose=true&includePrePost=${opts.prePost ? "true" : "false"}${opts.events ? "&events=div%2Csplits" : ""}`,
       );
       const result = data.chart?.result?.[0];
       if (result?.timestamp?.length) return result;
@@ -852,13 +856,35 @@ async function fetchYahooChart(symbol: string, interval: string, range: string):
   return null;
 }
 
+/** Dividends / splits from the Yahoo chart `events` block (F7.10); only what the response carries. */
+export interface ChartEvents {
+  dividends: { date: string; amount: number }[];
+  splits: { date: string; ratio: string }[];
+}
+
+function parseYahooEvents(result: YahooChartResult): ChartEvents | undefined {
+  const ev = result.events;
+  if (!ev) return undefined;
+  const day = (sec: number | undefined) => (typeof sec === "number" ? wallClock(sec, false) : "");
+  const dividends = Object.values(ev.dividends ?? {})
+    .filter((d) => typeof d.amount === "number" && d.amount > 0 && typeof d.date === "number")
+    .map((d) => ({ date: day(d.date), amount: d.amount! }))
+    .filter((d) => d.date);
+  const splits = Object.values(ev.splits ?? {})
+    .filter((d) => typeof d.date === "number" && (d.splitRatio || (d.numerator && d.denominator)))
+    .map((d) => ({ date: day(d.date), ratio: d.splitRatio ?? `${d.numerator}:${d.denominator}` }))
+    .filter((d) => d.date);
+  return { dividends, splits };
+}
+
 /** Split-adjusted US OHLC. Prices stay in dollars (not rounded to a won). */
 async function fetchUsOhlc(opts: {
   code: string;
   interval: ChartInterval;
   minuteSize?: MinuteSize;
   range?: string;
-}): Promise<{ bars: OhlcBar[]; source: string }> {
+  prePost?: boolean;
+}): Promise<{ bars: OhlcBar[]; source: string; events?: ChartEvents }> {
   const symbol = yahooUsSymbol(opts.code);
   if (!symbol) return { bars: [], source: "us-invalid" };
   const interval = opts.interval;
@@ -881,8 +907,10 @@ async function fetchUsOhlc(opts: {
     range = opts.range ?? "5y";
   }
 
-  const result = await fetchYahooChart(symbol, yahooInterval, range);
+  const prePost = interval === "minute" && Boolean(opts.prePost);
+  const result = await fetchYahooChart(symbol, yahooInterval, range, { prePost, events: interval === "day" || interval === "week" });
   if (!result) return { bars: [], source: "us-yahoo-empty" };
+  const events = parseYahooEvents(result);
   let raw = parseUsYahooBars(result, interval === "minute");
   if (interval === "minute" && bucket > 1) raw = bucketMinuteBars(raw, bucket);
   if (!raw.length) return { bars: [], source: "us-ohlc-empty" };
@@ -913,7 +941,7 @@ async function fetchUsOhlc(opts: {
     raw = yearly;
   }
 
-  return { bars: withMas(raw, { round: false }), source: `yahoo-us-${symbol}-${yahooInterval}` };
+  return { bars: withMas(raw, { round: false }), source: `yahoo-us-${symbol}-${yahooInterval}${prePost ? "-prepost" : ""}`, events };
 }
 
 // ── OHLC ────────────────────────────────────────────────────────────────
@@ -924,7 +952,8 @@ export async function fetchOhlc(opts: {
   interval: ChartInterval;
   minuteSize?: MinuteSize;
   range?: string;
-}): Promise<{ bars: OhlcBar[]; source: string }> {
+  prePost?: boolean;
+}): Promise<{ bars: OhlcBar[]; source: string; events?: ChartEvents }> {
   const { code, market, interval } = opts;
   if (market === "US") {
     return fetchUsOhlc({
@@ -932,6 +961,7 @@ export async function fetchOhlc(opts: {
       interval,
       minuteSize: opts.minuteSize,
       range: opts.range,
+      prePost: opts.prePost,
     });
   }
 

@@ -287,6 +287,8 @@ export const getChartData = createServerFn({ method: "GET" })
         ])
         .optional(),
       range: z.string().max(12).optional(),
+      /** US intraday: include pre/post-market bars (F7.13). */
+      prePost: z.boolean().optional(),
     }),
   )
   .handler(async ({ data }) => {
@@ -297,6 +299,7 @@ export const getChartData = createServerFn({ method: "GET" })
         interval: data.interval,
         minuteSize: data.minuteSize,
         range: data.range,
+        prePost: data.prePost,
       });
     }
     const code = normalizeKrTicker(data.code);

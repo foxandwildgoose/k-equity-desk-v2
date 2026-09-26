@@ -280,6 +280,8 @@ function EtfDetailPage() {
           <TradingChart
             code={normalizeKrTicker(etf?.code ?? code)}
             market="KOSPI"
+            instrument="etf"
+            name={etf?.nameKo}
           />
         </section>
       ) : null}

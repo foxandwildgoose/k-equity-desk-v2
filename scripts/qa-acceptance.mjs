@@ -601,6 +601,166 @@ await run(browser, "AT-34", async (page) => {
   record("AT-34", out.opens >= 2 && out.reconnectEvents >= 1 && defaults, `opens=${out.opens} reconnectEvents=${out.reconnectEvents} firstClose≈${out.firstCloseMs}ms (maxMs=5000 in QA; default 240 s, retry 3 s)=${defaults}`);
 });
 
+// ── P6: pro charts ──────────────────────────────────────────────────────
+// synthetic fixture (format sample), not market data
+function chartBars(n, seed = 1) {
+  const bars = [];
+  let c = 70000 * seed;
+  let d = Date.parse("2008-01-02T00:00:00Z");
+  while (bars.length < n) {
+    const day = new Date(d);
+    d += 86_400_000;
+    if (day.getUTCDay() === 0 || day.getUTCDay() === 6) continue;
+    const i = bars.length;
+    const o = c;
+    c = Math.max(100, Math.round(c * (1 + Math.sin(i / (9 * seed)) * 0.012 + ((i % 7) - 3) * 0.002)));
+    bars.push({ date: day.toISOString().slice(0, 10), label: "", open: o, high: Math.max(o, c) * 1.01, low: Math.min(o, c) * 0.99, close: c, volume: 1_000_000 + i * 1000, bullish: c >= o });
+  }
+  return bars;
+}
+
+async function mockCharts(page, n = 300, empty = false) {
+  await mockServerFns(page, {
+    getChartData: (d) => (empty ? { bars: [], source: "qa-empty" } : { bars: chartBars(n, String(d?.code ?? "").includes("000660") ? 2 : 1), source: "qa-fixture" }),
+  });
+}
+
+await run(browser, "AT-36", async (page) => {
+  await mockCharts(page);
+  await page.goto(`${BASE}/stock/005930`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="trading-chart"] [data-testid="chart-ohlc"]', { timeout: 30_000 });
+  await page.evaluate(() => {
+    for (const k of Object.keys(localStorage)) if (k.startsWith("ked:chart:v2:KR:005930")) localStorage.removeItem(k);
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="trading-chart"] [data-testid="chart-ohlc"]', { timeout: 30_000 });
+  const canvas = await page.$('[data-testid="trading-chart"] [data-testid="chart-canvas"]');
+  const box = await canvas.boundingBox();
+  await page.click('[data-testid="trading-chart"]', { position: { x: 5, y: 5 } });
+  await page.keyboard.press("h");
+  await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.2);
+  await page.keyboard.press("t");
+  await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.3);
+  await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.25);
+  const count = async () => Number(((await page.textContent('[data-testid="trading-chart"] [data-testid="open-objects"]')) ?? "").replace(/\D+/g, "") || 0);
+  const afterAdd = await count();
+  await page.keyboard.press("Control+z");
+  const afterUndo = await count();
+  await page.keyboard.press("Control+Shift+z");
+  const afterRedo = await count();
+  await page.click('[data-testid="trading-chart"] [data-testid="open-objects"]');
+  await page.waitForSelector('[data-testid="object-manager"] [data-drawing]');
+  const first = await page.$('[data-testid="object-manager"] [data-drawing]');
+  await first.$('button[aria-label="잠금"]').then((b) => b?.click());
+  await first.$('button[aria-label="숨기기"]').then((b) => b?.click());
+  const lockedHidden = (await first.$('button[aria-label="잠금 해제"]')) != null && (await first.$('button[aria-label="표시"]')) != null;
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(600);
+  const stored = await page.evaluate(() => localStorage.getItem("ked:chart:v2:KR:005930:day"));
+  const saved = stored ? JSON.parse(stored) : null;
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="trading-chart"] [data-testid="chart-ohlc"]', { timeout: 30_000 });
+  const afterReload = await count();
+  const ok = afterAdd === 2 && afterUndo === 1 && afterRedo === 2 && lockedHidden && saved?.drawings?.length === 2 && saved.drawings.some((d) => d.locked && d.hidden) && afterReload === 2;
+  record("AT-36", ok, `add=${afterAdd} undo=${afterUndo} redo=${afterRedo} lock+hide=${lockedHidden} persisted=${saved?.drawings?.length} afterReload=${afterReload} key=ked:chart:v2:KR:005930:day`);
+});
+
+await run(browser, "AT-38", async (page) => {
+  await mockCharts(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`${BASE}/chart?symbols=KR:005930,KR:000660,KR:005380,KR:035420&layout=4`, { waitUntil: "domcontentloaded" });
+  for (let i = 0; i < 4; i++) await page.waitForSelector(`[data-testid="workspace-pane-${i}"] [data-testid="chart-ohlc"]`, { timeout: 30_000 });
+  await page.waitForTimeout(800);
+  const c0 = await (await page.$('[data-testid="workspace-pane-0"] [data-testid="chart-canvas"]')).boundingBox();
+  const lastDate = ((await page.textContent('[data-testid="workspace-pane-3"] [data-testid="chart-ohlc"]')) ?? "").slice(0, 10);
+  await page.mouse.move(c0.x + c0.width * 0.35, c0.y + c0.height * 0.4);
+  await page.waitForTimeout(400);
+  const dates = [];
+  for (let i = 0; i < 4; i++) dates.push(((await page.textContent(`[data-testid="workspace-pane-${i}"] [data-testid="chart-ohlc"]`)) ?? "").slice(0, 10));
+  const synced = dates.every((d) => d === dates[0]) && dates[0] !== lastDate;
+  record("AT-38", synced, `hovered pane 0 → HUD dates ${dates.join(" / ")} (last bar ${lastDate})`);
+});
+
+await run(browser, "AT-41", async (page) => {
+  await mockCharts(page);
+  await page.goto(`${BASE}/stock/005930`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="trading-chart"] [data-testid="chart-ohlc"]', { timeout: 30_000 });
+  const [png] = await Promise.all([page.waitForEvent("download"), page.click('[data-testid="trading-chart"] [data-testid="chart-export-png"]')]);
+  const [csv] = await Promise.all([page.waitForEvent("download"), page.click('[data-testid="trading-chart"] [data-testid="chart-export-csv"]')]);
+  const { readFileSync } = await import("node:fs");
+  const text = readFileSync(await csv.path(), "utf8").replace(/^\uFEFF/, "").trim().split("\n");
+  const re = (ext) => new RegExp(`^ked-chart-KR-005930-day-\\d{8}-\\d{4}\\.${ext}$`);
+  const pngSize = readFileSync(await png.path()).length;
+  const ok = re("png").test(png.suggestedFilename()) && re("csv").test(csv.suggestedFilename()) && text[0].startsWith("time,open,high,low,close,volume") && text.length > 20 && pngSize > 1000;
+  record("AT-41", ok, `png=${png.suggestedFilename()} (${pngSize}B) csv=${csv.suggestedFilename()} rows=${text.length - 1} header="${text[0].slice(0, 60)}"`);
+});
+
+await run(browser, "AT-42", async (page) => {
+  await mockCharts(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/stock/005930`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="trading-chart"] [data-testid="chart-ohlc"]', { timeout: 30_000 });
+  const inlineHidden = !(await page.isVisible('[data-testid="trading-chart"] [data-testid="chart-type"]'));
+  await page.click('[data-testid="trading-chart"] [data-testid="chart-tools-mobile"]');
+  await page.waitForSelector('[data-testid="chart-tools-sheet"] [data-testid="chart-type"]', { timeout: 5_000 });
+  const btn = await (await page.$('[data-testid="trading-chart"] [data-testid="chart-tools-mobile"]')).boundingBox();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  record("AT-42", inlineHidden && !overflow && btn.width >= 44 && btn.height >= 44, `inline toolbar hidden=${inlineHidden} sheet=ok toolsButton=${btn.width}×${btn.height} pageOverflow=${overflow}`);
+});
+
+await run(browser, "AT-43", async (page) => {
+  await mockCharts(page);
+  await page.goto(`${BASE}/stock/005930`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="valuation-band-chart"] [data-testid="chart-status"]', { timeout: 30_000 });
+  const shell = '[data-testid="valuation-band-chart"]';
+  await page.waitForFunction((sel) => /출처 /.test(document.querySelector(sel)?.textContent ?? ""), `${shell} [data-testid="chart-status"]`, { timeout: 20_000 }).catch(() => undefined);
+  const status = (await page.textContent(`${shell} [data-testid="chart-status"]`)) ?? "";
+  const hasFull = await page.isVisible(`${shell} [data-testid="chart-fullscreen"]`);
+  const hasHud = await page.isVisible(`${shell} [data-testid="chart-hud"]`);
+  const [png] = await Promise.all([page.waitForEvent("download"), page.click(`${shell} [data-testid="chart-export-png"]`)]);
+  const ok = /출처 /.test(status) && !/확인 전/.test(status) && /기준/.test(status) && hasFull && hasHud && /^ked-chart-KR-005930-band-per-\d{8}-\d{4}\.png$/.test(png.suggestedFilename());
+  record("AT-43", ok, `status="${status.trim().slice(0, 70)}" fullscreen=${hasFull} hud=${hasHud} png=${png.suggestedFilename()}`);
+});
+
+await run(browser, "AT-44", async (page) => {
+  await mockCharts(page, 0, true);
+  await page.goto(`${BASE}/stock/005930`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="trading-chart"] [data-testid="chart-status"]', { timeout: 30_000 });
+  await page.waitForTimeout(1500);
+  const status = (await page.textContent('[data-testid="trading-chart"] [data-testid="chart-status"]')) ?? "";
+  const msg = /표시할 봉이 없습니다/.test((await page.textContent('[data-testid="trading-chart"] [data-testid="chart-empty"]').catch(() => "")) ?? "") && (await page.isVisible('[data-testid="trading-chart"] [data-testid="chart-empty"]'));
+  const noExport = !(await page.isVisible('[data-testid="trading-chart"] [data-testid="chart-export-png"]'));
+  record("AT-44", /데이터가 없으면 차트를 그리지 않습니다/.test(status) && msg && noExport, `empty data → status="${status.trim().slice(0, 50)}" message=${msg} exportHidden=${noExport}`);
+});
+
+await run(browser, "F7.15-perf", async (page) => {
+  await mockCharts(page, 5000);
+  await page.addInitScript(() => {
+    window.__long = [];
+    try {
+      new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__long.push(e.duration))).observe({ entryTypes: ["longtask"] });
+    } catch {
+      /* unsupported */
+    }
+  });
+  await page.goto(`${BASE}/chart?symbols=KR:005930&layout=1`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="workspace-pane-0"] [data-testid="chart-ohlc"]', { timeout: 30_000 });
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => (window.__long = []));
+  const b = await (await page.$('[data-testid="workspace-pane-0"] [data-testid="chart-canvas"]')).boundingBox();
+  await page.mouse.move(b.x + b.width * 0.6, b.y + b.height * 0.4);
+  for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 400);
+  await page.mouse.down();
+  for (let i = 0; i < 20; i++) await page.mouse.move(b.x + b.width * (0.6 - i * 0.02), b.y + b.height * 0.4);
+  await page.mouse.up();
+  for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -400);
+  await page.waitForTimeout(500);
+  const longs = await page.evaluate(() => window.__long);
+  const max = longs.length ? Math.max(...longs) : 0;
+  const bars = ((await page.textContent('[data-testid="workspace-pane-0"] [data-testid="chart-status"]')) ?? "").match(/([\d,]+)봉/)?.[1];
+  record("F7.15-perf", max <= 200, `5,000 daily bars (${bars}) pan/zoom: long tasks=${longs.length} max=${Math.round(max)}ms`);
+});
+
 await browser.close();
 writeFileSync(join(outDir, "acceptance.json"), JSON.stringify({ at: new Date().toISOString(), results }, null, 2));
 process.exit(results.every((r) => r.ok) ? 0 : 1);

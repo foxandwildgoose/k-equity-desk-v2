@@ -9,6 +9,7 @@ import { personalize, useWatchContext } from "@/lib/use-feed";
 import {
   canonicalRegions,
   diffNewItems,
+  inQuietHours,
   EMPTY_NOTIFY,
   EMPTY_SEEN,
   passesToggles,
@@ -312,4 +313,25 @@ export function useLiveWireEngine() {
 /** Live Wire state for UI (F8.2 `useLiveWire`): items, unread, role, errors, drawer. */
 export function useLiveWire() {
   return useWireStore();
+}
+
+/**
+ * Fire a chart alert through the Live Wire notifier (F7.11): in-app toast
+ * always; OS notification when enabled + granted and outside quiet hours.
+ */
+export function notifyAlert(title: string, body: string) {
+  const s = useAppStore.getState().alertSettings;
+  toast(title, { id: `alert:${title}:${Date.now()}`, description: body, duration: 10_000, action: { label: "Live Wire", onClick: () => useWireStore.getState().setDrawerOpen(true) } });
+  if (s.osEnabled && notificationPermission() === "granted" && !inQuietHours(Date.now(), s.quietHours)) {
+    try {
+      const n = new Notification(title, { body, tag: `alert:${title}` });
+      n.onclick = () => {
+        window.focus();
+        n.close();
+      };
+    } catch {
+      /* unavailable */
+    }
+  }
+  if (s.sound && !inQuietHours(Date.now(), s.quietHours)) beep();
 }

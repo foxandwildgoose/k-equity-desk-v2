@@ -64,7 +64,7 @@ test("TradingView Lightweight Charts attribution link exists (attributionLogo:fa
   assert.match(shell, /href=\{CHART_ATTRIBUTION_URL\}/);
   assert.match(shell, /\{CHART_ATTRIBUTION_LABEL\}/);
   // Every chart that hides the logo lives under the AppShell footer.
-  const chartFiles = walk(join(root, "src")).filter((f) => /\.tsx$/.test(f) && readFileSync(f, "utf8").includes("attributionLogo: false"));
+  const chartFiles = walk(join(root, "src")).filter((f) => /\.(ts|tsx)$/.test(f) && readFileSync(f, "utf8").includes("attributionLogo: false"));
   assert.ok(chartFiles.length > 0);
 });
 

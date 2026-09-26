@@ -42,7 +42,7 @@ mappers accept several candidate field names and stay `unverified`.
 | P3 | done | research v2 adapter + desk, detail sheet, Δ% rule, pre-resolve; US tiers, Street Moves + CSV, briefing |
 | P4 | done | ETF news (/news/etf + /etfs tab), robotics section (6 tabs), Federal Register, cross-links |
 | P5 | done | /api/wire, Live Wire engine (Web Locks leader), drawer/badge/toasts/OS opt-in, /settings/alerts, SSE hardening |
-| P6 | pending | |
+| P6 | done | ProChart core + Tier A (/stock, /etfs, /us, /chart), Tier B/C chrome, D9 |
 | P7 | pending | |
 
 ## Decisions
@@ -63,6 +63,12 @@ mappers accept several candidate field names and stay `unverified`.
 - Live Wire notifications: OS notifications fire from the elected leader tab only; in-app toasts fire in the visible tab(s). Quiet hours suppress OS notifications and sound; in-app toasts and the badge keep working.
 - Wire items are re-scored on the client with the viewer's watchlist/keywords (same kernel as `/api/feed`), so tiers can rise for watch matches.
 - `/api/market-stream` accepts an optional `maxMs` (clamped 5–240 s) used by the QA harness to verify reconnects quickly; the default lifetime stays 240 s.
+
+- Pro chart = one `ProChart` component on lightweight-charts v5 (series primitives for drawings, volume profile and session shading); `TradingChart` keeps its data controls and analytics strips around it. Drawing clicks come from DOM pointer events (LWC swallows a second click inside its double-click window).
+- Drawing anchors are bar-time keyed (`{t, p}`), so drawings survive reloads and interval-agnostic migration; legacy `ke-chart-draw:{code}` segments (bar-index anchors) are mapped through the daily bar times once and dropped when out of range.
+- Chart layout (indicators, drawings, type, scale, overlays) persists per `ked:chart:v2:{market}:{code}:{interval}`; templates live in the store (`chartPrefs.templates`).
+- Compare overlay forces the price scale to percent-from-first-visible-bar (native LWC percentage mode) while active.
+- Pivot points use the previous bar's H/L/C (labelled P/R1–3/S1–3); 52-week high/low uses a configurable bar lookback (252 daily).
 
 ## Deviations
 - Branch name (see Base).
@@ -86,6 +92,10 @@ mappers accept several candidate field names and stay `unverified`.
 
 - Price alerts: the evaluator (AT-33) and the settings list ship in P5; creating horizontal-line alerts from charts lands with the P6 chart workspace.
 - Web Push (background notifications with the browser closed) is out of scope — needs VAPID keys, subscription storage and a scheduler; stated on `/settings/alerts`.
+
+- F7.18 TradingView widget tab (COULD) not built.
+- F7.11 alerts evaluate on chart data refresh; KIS stream ticks update quote caches only (no intrabar chart updates).
+- Tier B: InvestorFlow and the valuation multiple chart keep their own domain HUD/window controls; they gained the shared theme/formatters, status line, fullscreen, PNG/CSV (and log where sensible). Their existing tests stay green.
 
 ## Blockers
 - Network egress denies every market-data host (not a credential issue). No paid service needed.
@@ -129,5 +139,12 @@ mappers accept several candidate field names and stay `unverified`.
 6. Fixes: `/news/kr` and `/news/us` hydration races (shell queries settling before the lazy route hydrates) → mounted guards.
 7. Gates: typecheck 0 · tests 201 + 188 · ESLint changed 0 errors · build ok · qa:smoke 40/40 (20 routes × 2) · qa:acceptance 19/19 (AT-09…AT-34 browser set).
 
+### P6 — pro charts (done)
+1. Pure: 18 new indicators in `chart-indicators.ts` (WMA, HMA, Keltner, Donchian, Ichimoku, PSAR, Supertrend, Anchored VWAP, OBV, Volume Profile, Stoch RSI, ADX/DMI, CCI, MFI, Williams %R, pivots, N-bar high/low, Heikin-Ashi) with known values from an independent reference; `src/lib/charts/{catalog,drawings,persistence,tools,bar-time}.ts` (catalog + memo keys, drawing model + undo/redo + fib/position/measure maths + KRX tick/magnet snap, layout persistence + legacy migration, replay/sessions/compare/export helpers); indicator alerts in `price-alert.ts`. Fixed `rsi([])` returning a phantom point.
+2. Core: `charts/core/{theme,create-pro-chart,sync,export,ChartShell,chrome,ChartFrame}` — CSS-var theme, shared options (attribution link rule kept), crosshair/time sync with HUD propagation, PNG/CSV, status line, fullscreen, `?` help, mobile bottom sheet.
+3. `ProChart`: 7 chart types, 4 scales, catalog dialog + templates, 15 drawing tools with handles/lock/hide/object manager/undo-redo, compare ≤ 3, overlays (disclosures, news counts → list, research TP, US dividends/splits, RSI/MACD signals), chart alerts via the Live Wire notifier, replay (1–10×), US pre/post toggle + session shading, 10k bar cap, memoized indicators. `TradingChart` rebuilt around it; fullscreen opens `/chart` (1/2/4 panes, synced crosshair, optional synced interval, per-pane search).
+4. Tier B: ValuationBand, ValuationHistory (weekly + multiples), InvestorFlow, ExportDual on the shared theme/formatters + ChartShell (status, fullscreen, PNG/CSV; presets/log/% where sensible; ExportDual now dual-axis). Tier C: ExportDesk bar chart in `ChartFrame` (title, unit, source/as-of, aria, PNG/CSV); Sparkline role=img + label. D9 hook hoisted.
+5. Gates: typecheck 0 · tests 201 + 207 · ESLint changed 0 errors · build ok · qa:smoke 40/40 (20 routes × 2) · qa:acceptance 26/26 (incl. AT-36/38/41/42/43/44, 5,000-bar perf: 0 long tasks).
+
 ## Next steps
-- P6: Pro charts (core, indicators with tests, drawings, compare, `/chart` workspace, persistence + `ke-chart-draw:{code}` migration, overlays, price alerts from charts, replay, extended hours, mobile, perf).
+- P7: F9 optional AI layer (off unless configured), F10.3 dashboard cards (Live Wire top 5, 오늘의 리서치, US snapshot, Robotics snapshot), final QA, FINAL_REPORT.md, push, PR decision.

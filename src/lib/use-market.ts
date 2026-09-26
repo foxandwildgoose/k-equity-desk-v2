@@ -96,6 +96,8 @@ export function useChartData(opts: {
   minuteSize?: MinuteSize;
   range?: string;
   enabled?: boolean;
+  /** US intraday pre/post-market bars. */
+  prePost?: boolean;
 }) {
   const us = opts.market === "US";
   const code = us ? (yahooUsSymbol(opts.code) ?? opts.code.trim().toUpperCase()) : normalizeKrTicker(opts.code);
@@ -107,6 +109,7 @@ export function useChartData(opts: {
       opts.interval,
       opts.minuteSize ?? 1,
       opts.range ?? "default",
+      opts.prePost ? "prepost" : "",
     ],
     queryFn: () =>
       getChartData({
@@ -116,6 +119,7 @@ export function useChartData(opts: {
           interval: opts.interval,
           minuteSize: opts.minuteSize,
           range: opts.range,
+          prePost: us && opts.interval === "minute" ? Boolean(opts.prePost) : undefined,
         },
       }),
     staleTime: opts.interval === "minute" ? 15_000 : 60_000,
