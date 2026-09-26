@@ -18,7 +18,8 @@
     "check:auth": "node scripts/check-auth-invariant.mjs",
     "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/app-data/app-data.test.ts src/lib/auth/gate-identity.test.ts src/lib/export-desk/export-desk.test.ts src/lib/infer-sector.test.ts src/lib/search-match.test.ts src/lib/chart-indicators.test.ts src/lib/valuation-series.test.ts src/lib/us-official-parse.test.ts src/data/universe.test.ts src/server/etf-market.test.ts src/server/etf-holdings-parse.test.ts",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "verify:sources": "node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/verify-sources.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
@@ -55,6 +56,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.0.0",
+    "fast-xml-parser": "^5.11.1",
     "jose": "6.2.9",
     "kysely": "^0.28.5",
     "lightweight-charts": "^5.2.1",
