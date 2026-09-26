@@ -1,5 +1,6 @@
 /**
  * Adapter registration entry point. Importing this module registers every
- * implemented source adapter with the runner. (P2+ adds adapters here.)
+ * implemented source adapter with the runner.
  */
-export { hasAdapter, registerAdapter, runSource, runSources } from "../runner.ts";
+import "./news.ts";
+export { hasAdapter, registerAdapter, runSource, runSources, type RunResult } from "../runner.ts";

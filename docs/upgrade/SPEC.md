@@ -32,21 +32,21 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [x] B0.4e tests: RSS2, Atom, EUC-KR bytes, CDATA, missing dates
 - [x] B0.5a `src/server/feeds/health.ts` per-source: last attempt/success, status, latency, count, newest publishedAt, consecutive failures, circuit, adapter path (v2/legacy/html)
 - [x] B0.5b `/status/sources` page, Korean labels, chips, `지금 재시도` (bypass TTL once, respect circuit)
-- [ ] B0.5c every feed panel `소스 n/m 정상` chip → `/status/sources`
+- [x] B0.5c every feed panel `소스 n/m 정상` chip → `/status/sources`
 - [x] B0.6a cluster: NFKC, lowercase, strip `[속보]`,`[단독]`,`(종합)`,`(2보)`, trailing ` - Source`, punctuation; Hangul bigrams + Latin words − stopwords; Jaccard ≥ 0.6 & ≤ 12 h; rep = best tier then earliest
 - [x] B0.6b importance 0–100 w/ Korean reason chips; weights in `src/data/news-keywords.ts` (tier 25/15/5, flash 15, keyword classes 10–30 cap 40, watch 20, cluster≥3 10, decay −5/h after 2h); flash ≥80, high ≥60
-- [~] B0.6c user keyword watch persisted; feeds score + alert filters
-- [ ] B0.7a `GET /api/feed` params region/kinds/topics/tickers/cursor/limit; merge→cluster→score→sort; opaque cursor `publishedAt|id`; response shape; Cache-Control `public, s-maxage=30, stale-while-revalidate=60`; 8 s budget, partial
+- [x] B0.6c user keyword watch persisted; feeds score + alert filters
+- [x] B0.7a `GET /api/feed` params region/kinds/topics/tickers/cursor/limit; merge→cluster→score→sort; opaque cursor `publishedAt|id`; response shape; Cache-Control `public, s-maxage=30, stale-while-revalidate=60`; 8 s budget, partial
 - [x] B0.7b `src/components/feed/`: FeedList (virtualized >200, date headers 오늘/어제/날짜, 더 보기), FeedRow (time, source badge + tier dot, 유료, headline `<a target=_blank rel="noopener noreferrer">`, 2-line snippet, ticker chips, reason chips, cluster +N), BriefingDigest, SourceHealthChip, TimeStamp, FilterBar (source/topic/min importance/watchlist-only + `matchesSearchQuery`), EmptyState (reason + health link); mobile 390 px no h-scroll, 44 px targets
-- [~] B0.7c Briefing definition: as-of + session; snapshot tiles (source+delay); top stories ≤7 clusters/12 h by importance w/ reasons + all links; theme momentum 6 h vs prior 24 h w/ counts; upcoming events (if calendar source); optional F9 button
+- [x] B0.7c Briefing definition: as-of + session; snapshot tiles (source+delay); top stories ≤7 clusters/12 h by importance w/ reasons + all links; theme momentum 6 h vs prior 24 h w/ counts; upcoming events (if calendar source); optional F9 button
 
 ## F1 KR News `/news/kr` (P2)
-- [ ] F1.1 (M) sources: stock.naver FLASHNEWS/MAINNEWS + focus 401/402/403/404/406/429; Hankyung finance+economy; Yonhap/Maeil if verified; Google News `코스피`,`코스닥`,`외국인 순매수`,`증시 마감` (`when:1d`); disclosures via `getScanDisclosures` (kind disclosure); optional KIS news-title (FHKST01011800, token cache ≤1/min)
-- [ ] F1.2 (M) header (as-of, KRX/NXT session, health chip) → BriefingDigest (KOSPI/KOSDAQ/KOSPI200 + USD/KRW) → FeedList + filters + 더 보기
-- [ ] F1.3 (M) ticker tagging: exact 6-char code or UNIVERSE name, longest wins, names < 2 chars ignored
-- [ ] F1.4 (M) `LiveNews` newest-first via kernel, 더 보기 (page 2+), source badges
-- [ ] F1.5 (S) Naver AI market briefing card (attributed, linked; current + list)
-- [ ] F1.6 (S) KR calendar strip only with verifiable source, else omitted
+- [x] F1.1 (M) sources: stock.naver FLASHNEWS/MAINNEWS + focus 401/402/403/404/406/429; Hankyung finance+economy; Yonhap/Maeil if verified; Google News `코스피`,`코스닥`,`외국인 순매수`,`증시 마감` (`when:1d`); disclosures via `getScanDisclosures` (kind disclosure); optional KIS news-title (FHKST01011800, token cache ≤1/min)
+- [x] F1.2 (M) header (as-of, KRX/NXT session, health chip) → BriefingDigest (KOSPI/KOSDAQ/KOSPI200 + USD/KRW) → FeedList + filters + 더 보기
+- [x] F1.3 (M) ticker tagging: exact 6-char code or UNIVERSE name, longest wins, names < 2 chars ignored
+- [x] F1.4 (M) `LiveNews` newest-first via kernel, 더 보기 (page 2+), source badges
+- [x] F1.5 (S) Naver AI market briefing card (attributed, linked; current + list)
+- [~] F1.6 (S) KR calendar strip only with verifiable source, else omitted — omitted: no verifiable KR calendar source (documented)
 
 ## F2 KR Research `/research` KR + BrokerReports (P3)
 - [ ] F2.1 (M) research v2 six categories w/ index paging + totalCount; legacy fallback; adapter path in health; Hankyung consensus only if verified (login → disable)
@@ -60,13 +60,13 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [ ] F2.9 (S) industry filter via v2 industryTypes if verified, else fixed taxonomy
 
 ## F3 US News `/news/us` (P2)
-- [ ] F3.1 (M) Bloomberg RSS (A4) + GN `site:bloomberg.com when:1d`; naver worldNews + focus 403; Fed press RSS; SEC 8-K Atom (tier 1, ticker via CIK map) if verified; Finviz/Nasdaq ratings as kind rating; CNBC/MarketWatch/Yahoo if verified; GN EN `stock market today`,`S&P 500`,`Nasdaq`,`Treasury yields` (`when:1d`); optional Finnhub
-- [ ] F3.2 (M) snapshot tiles ^GSPC ^NDX ^DJI ^RUT ^VIX ^TNX DX-Y.NYB CL=F GC=F BTC-USD KRW=X via Yahoo chart, fixed allowlist, not via `yahooUsSymbol`; source + delay labels
-- [ ] F3.3 (M) session badge (pre/regular/after/closed from NY clock, `추정`); KST/ET toggle
-- [ ] F3.4 (M) economic calendar next 7 days from `fetchUsOfficialPolicy().calendar`
-- [ ] F3.5 (M) `usWatchlist` in store (default US_STREET_SYMBOLS); tag `$TICKER`, cashtags, exact company-name map (watchlist + robotics US)
-- [ ] F3.6 (S) MarketBar US segment (SPX, NDX, VIX, US10Y, USD/KRW) labeled delayed
-- [ ] F3.7 (C) US earnings-today (Nasdaq calendar JSON) if verified
+- [x] F3.1 (M) Bloomberg RSS (A4) + GN `site:bloomberg.com when:1d`; naver worldNews + focus 403; Fed press RSS; SEC 8-K Atom (tier 1, ticker via CIK map) if verified; Finviz/Nasdaq ratings as kind rating; CNBC/MarketWatch/Yahoo if verified; GN EN `stock market today`,`S&P 500`,`Nasdaq`,`Treasury yields` (`when:1d`); optional Finnhub
+- [x] F3.2 (M) snapshot tiles ^GSPC ^NDX ^DJI ^RUT ^VIX ^TNX DX-Y.NYB CL=F GC=F BTC-USD KRW=X via Yahoo chart, fixed allowlist, not via `yahooUsSymbol`; source + delay labels
+- [x] F3.3 (M) session badge (pre/regular/after/closed from NY clock, `추정`); KST/ET toggle
+- [x] F3.4 (M) economic calendar next 7 days from `fetchUsOfficialPolicy().calendar`
+- [x] F3.5 (M) `usWatchlist` in store (default US_STREET_SYMBOLS); tag `$TICKER`, cashtags, exact company-name map (watchlist + robotics US)
+- [x] F3.6 (S) MarketBar US segment (SPX, NDX, VIX, US10Y, USD/KRW) labeled delayed
+- [~] F3.7 (C) US earnings-today (Nasdaq calendar JSON) if verified — not built: Nasdaq calendar JSON unverified offline
 
 ## F4 US Research `/research?market=us` + `/us-research` (P3)
 - [ ] F4.1 (M) Korean scope banner (exact text)
@@ -130,7 +130,7 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [ ] F9.4 optional EN→KO headline translation labeled `기계 번역`
 
 ## F10 Navigation / state / dashboard
-- [ ] F10.1 (M) grouped sidebar 한국/미국/테마/도구 (exact items); `/news` → `/news/kr`; sectors below; mobile Sheet
+- [x] F10.1 (M) grouped sidebar 한국/미국/테마/도구 (exact items); `/news` → `/news/kr`; sectors below; mobile Sheet
 - [x] F10.2 (M) store `version: 2` + `migrate`; fields usWatchlist, keywordWatch, alertSettings, newsPrefs, chartPrefs, roboticsCustom; migration test from unversioned
 - [ ] F10.3 (M) dashboard cards after first paint (`deferSecondary`): Live Wire top 5, 오늘의 리서치 (counts + 3 newest), US snapshot, Robotics snapshot
 

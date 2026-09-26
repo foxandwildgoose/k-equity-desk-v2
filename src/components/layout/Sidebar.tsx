@@ -15,25 +15,65 @@ import {
   Flag,
   Ship,
   Landmark,
+  Newspaper,
+  Globe2,
+  LineChart,
+  Activity,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
-const NAV: Array<{
+type NavItem = {
   to: string;
   label: string;
   icon: typeof LayoutDashboard;
   exact?: boolean;
   tone?: string;
-}> = [
-  { to: "/", label: "대시보드", icon: LayoutDashboard, exact: true },
-  { to: "/etfs", label: "퇴직연금 ETF", icon: Layers, tone: "text-desk-gold" },
-  { to: "/us-link", label: "미국 연계", icon: Flag, tone: "text-desk-teal" },
-  { to: "/us-research", label: "Research", icon: Landmark, tone: "text-desk-gold" },
-  { to: "/export-desk", label: "수출 × KOSPI", icon: Ship, tone: "text-desk-gold" },
-  { to: "/research", label: "리서치 데스크", icon: Library },
-  { to: "/disclosures", label: "주요 공시", icon: FileText },
-  { to: "/watchlist", label: "관심종목", icon: Star },
+  search?: Record<string, string>;
+};
+
+/** Grouped navigation (F10.1). Every pre-existing URL keeps working. */
+export const NAV_GROUPS: { id: string; label: string; items: NavItem[] }[] = [
+  {
+    id: "kr",
+    label: "한국",
+    items: [
+      { to: "/", label: "대시보드", icon: LayoutDashboard, exact: true },
+      { to: "/news/kr", label: "한국 뉴스", icon: Newspaper },
+      { to: "/research", label: "리서치 데스크", icon: Library, search: { market: "kr" } },
+      { to: "/etfs", label: "퇴직연금 ETF", icon: Layers, tone: "text-desk-gold" },
+      { to: "/disclosures", label: "주요 공시", icon: FileText },
+      { to: "/export-desk", label: "수출 × KOSPI", icon: Ship, tone: "text-desk-gold" },
+    ],
+  },
+  {
+    id: "us",
+    label: "미국",
+    items: [
+      { to: "/news/us", label: "미국 뉴스", icon: Globe2 },
+      { to: "/research", label: "미국 리서치", icon: LineChart, search: { market: "us" } },
+      { to: "/us-research", label: "공식 원문", icon: Landmark, tone: "text-desk-gold" },
+      { to: "/us-link", label: "미국 연계", icon: Flag, tone: "text-desk-teal" },
+    ],
+  },
+  {
+    id: "tools",
+    label: "도구",
+    items: [
+      { to: "/watchlist", label: "관심종목", icon: Star },
+      { to: "/status/sources", label: "소스 상태", icon: Activity },
+    ],
+  },
 ];
+
+function isActive(item: NavItem, pathname: string, search: Record<string, unknown>): boolean {
+  const pathHit = item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
+  if (!pathHit) return false;
+  if (item.to === "/research") {
+    const market = search.market === "us" ? "us" : "kr";
+    return (item.search?.market ?? "kr") === market;
+  }
+  return true;
+}
 
 export function Sidebar({
   onNavigate,
@@ -43,6 +83,7 @@ export function Sidebar({
   className?: string;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const search = useRouterState({ select: (s) => s.location.search as Record<string, unknown> });
   const focusMode = useAppStore((s) => s.focusMode);
   const setFocusMode = useAppStore((s) => s.setFocusMode);
   const colors = usePriceColors();
@@ -80,30 +121,31 @@ export function Sidebar({
         </Link>
       </div>
 
-      <nav className="px-2 py-2.5 space-y-0.5">
-        <div className="px-2.5 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/35">
-          Workspace
-        </div>
-        {NAV.map((item) => {
-          const active = item.exact
-            ? pathname === item.to
-            : pathname === item.to || pathname.startsWith(`${item.to}/`);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={onNavigate}
-              className={cn(
-                "nav-item",
-                active ? "nav-item-active" : "nav-item-idle",
-              )}
-            >
-              <Icon className={cn("size-3.5 shrink-0", item.tone || "opacity-80")} />
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="px-2 py-2 space-y-2" aria-label="주 메뉴">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.id} className="space-y-0.5">
+            <div className="px-2.5 pb-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/35">
+              {group.label}
+            </div>
+            {group.items.map((item) => {
+              const active = isActive(item, pathname, search);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={`${item.to}-${item.label}`}
+                  to={item.to}
+                  search={item.search as never}
+                  onClick={onNavigate}
+                  className={cn("nav-item", active ? "nav-item-active" : "nav-item-idle")}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <Icon className={cn("size-3.5 shrink-0", item.tone || "opacity-80")} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       <div className="mx-2.5 my-1.5 rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-2">

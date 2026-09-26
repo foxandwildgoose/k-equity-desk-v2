@@ -1547,7 +1547,7 @@ export async function fetchResearchPdf(
 
 // ── News ────────────────────────────────────────────────────────────────
 
-export async function fetchNews(code: string): Promise<NewsItem[]> {
+export async function fetchNews(code: string, page = 1): Promise<NewsItem[]> {
   const data = await getJson<
     {
       items?: {
@@ -1562,7 +1562,7 @@ export async function fetchNews(code: string): Promise<NewsItem[]> {
         mobileNewsUrl?: string;
       }[];
     }[]
-  >(`https://m.stock.naver.com/api/news/stock/${code}?pageSize=20&page=1`);
+  >(`https://m.stock.naver.com/api/news/stock/${code}?pageSize=20&page=${Math.max(1, Math.min(page, 20))}`);
 
   const items: NewsItem[] = [];
   for (const group of data ?? []) {

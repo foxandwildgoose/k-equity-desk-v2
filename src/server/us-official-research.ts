@@ -1130,3 +1130,11 @@ export async function fetchUsOfficialReport(id: string): Promise<OfficialReport 
   report.id = key;
   return cacheReport(report, key);
 }
+
+/** CIK (no leading zeros) → ticker, from the SEC company_tickers.json directory. */
+export async function cikTickerMap(): Promise<Map<string, string>> {
+  const dir = await tickerDirectory();
+  const out = new Map<string, string>();
+  for (const [ticker, hit] of dir) if (!out.has(hit.cik)) out.set(hit.cik, ticker);
+  return out;
+}

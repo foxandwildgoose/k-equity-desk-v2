@@ -36,7 +36,7 @@ import {
   type EtfAssetClass,
 } from "@/server/etf-market";
 import { UNIVERSE } from "@/data/universe";
-import { sortDisclosuresNewestFirst } from "@/lib/feed/mappers";
+import { sortDisclosuresNewestFirst, sortTimedNewestFirst } from "@/lib/feed/mappers";
 import { inferSectorId, detectKrMarket, normalizeKrTicker, isKrTicker } from "@/lib/infer-sector";
 import { US_LINKED_CODES, US_POLICY_BRIEFS } from "@/data/us-link";
 import { fetchUsLinkLiveFeeds } from "@/server/us-link-feed";
@@ -240,7 +240,7 @@ export const getStockBundle = createServerFn({ method: "GET" })
       flow,
       research: researchPack.company,
       researchPack,
-      news,
+      news: sortTimedNewestFirst(news),
       disclosures,
       disclosureMeta: {
         kind: discBundle.kindStatus,
@@ -383,6 +383,19 @@ export const getDisclosureDetail = createServerFn({ method: "GET" })
   .handler(async ({ data }) =>
     fetchDisclosureDetail(normalizeKrTicker(data.code), data.disclosureId),
   );
+
+/** F1.4: per-stock Naver news page N (newest first via the kernel), for 더 보기. */
+export const getStockNews = createServerFn({ method: "GET" })
+  .validator(z.object({ code: z.string().regex(/^[0-9A-Z]{6}$/), page: z.number().int().min(1).max(20) }))
+  .handler(async ({ data }) => {
+    const code = normalizeKrTicker(data.code);
+    try {
+      const items = await fetchNews(code, data.page);
+      return { items: sortTimedNewestFirst(items), page: data.page, hasMore: items.length >= 20, error: null as string | null, fetchedAt: new Date().toISOString() };
+    } catch (err) {
+      return { items: [] as NewsItem[], page: data.page, hasMore: false, error: err instanceof Error ? err.message.slice(0, 120) : "error", fetchedAt: new Date().toISOString() };
+    }
+  });
 
 export const getMarketIndices = createServerFn({ method: "GET" }).handler(
   async () => {

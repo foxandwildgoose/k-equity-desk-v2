@@ -343,6 +343,7 @@ function StockPage() {
             news={news ?? []}
             disclosures={disclosures ?? []}
             title={`${meta.nameKo}`}
+            code={meta.code}
           />
         </div>
       </div>

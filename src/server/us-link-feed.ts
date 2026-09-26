@@ -8,7 +8,9 @@ import { fetchResearchDesk, fetchNews, type ResearchReport, type NewsItem } from
 import { US_LINKED_CODES, US_LINKED_NAMES } from "@/data/us-link";
 import { sortTimedNewestFirst } from "@/lib/feed/mappers";
 import { parseSourceTime } from "@/lib/feed/time";
-import { decodeHtmlEntities } from "@/lib/readable-text";
+import { fetchWithPolicy } from "@/server/feeds/http";
+import { parseFeed } from "@/lib/feed/rss-parse";
+import { stripPublisherSuffix } from "@/lib/feed/parsers/generic";
 
 export type UsFeedCategory = "ai-race" | "policy" | "industry";
 
@@ -36,68 +38,38 @@ function hashStr(s: string): number {
   return h;
 }
 
-function decodeXml(s: string): string {
-  return decodeHtmlEntities(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")).trim();
-}
-
-function stripTags(s: string): string {
-  return decodeXml(s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
-}
-
-async function getText(url: string): Promise<string> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 18_000);
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; KoreaEquityCommand/1.0) AppleWebKit/537.36",
-        Accept: "application/rss+xml,application/xml,text/xml,*/*",
-      },
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.text();
-  } finally {
-    clearTimeout(t);
-  }
-}
-
+/**
+ * Google News RSS search (no key). Goes through `fetchWithPolicy` (allowlist,
+ * cache, circuit) and the shared RSS parser. `sourceId` selects the registry
+ * entry for health/kill switch (defaults by locale).
+ */
 export async function fetchGoogleNewsRss(
   query: string,
   limit = 10,
   locale: "ko" | "en" = "ko",
+  sourceId?: string,
 ): Promise<Omit<UsLiveArticle, "category" | "deskNote" | "relatedCodes" | "kind">[]> {
-  const hl = locale === "ko" ? "ko" : "en";
+  const hl = locale === "ko" ? "ko" : "en-US";
   const gl = locale === "ko" ? "KR" : "US";
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=${hl}&gl=${gl}&ceid=${gl}:${hl}`;
-  const xml = await getText(url);
-  const items: Omit<
-    UsLiveArticle,
-    "category" | "deskNote" | "relatedCodes" | "kind"
-  >[] = [];
-  const blocks = xml.match(/<item>([\s\S]*?)<\/item>/gi) ?? [];
-  for (const block of blocks.slice(0, limit)) {
-    const title = stripTags(
-      block.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? "",
-    );
-    const link = stripTags(
-      block.match(/<link>([\s\S]*?)<\/link>/i)?.[1] ?? "",
-    );
-    const pub = stripTags(
-      block.match(/<pubDate>([\s\S]*?)<\/pubDate>/i)?.[1] ?? "",
-    );
-    const source = stripTags(
-      block.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] ?? "Google News",
-    );
-    if (!title || !link) continue;
+  const ceid = locale === "ko" ? "KR:ko" : "US:en";
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=${hl}&gl=${gl}&ceid=${ceid}`;
+  const res = await fetchWithPolicy(url, {
+    sourceId: sourceId ?? (locale === "ko" ? "gn-kr-market" : "gn-us-market"),
+    accept: "application/rss+xml,application/xml,text/xml",
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const items: Omit<UsLiveArticle, "category" | "deskNote" | "relatedCodes" | "kind">[] = [];
+  for (const e of parseFeed(res.text).slice(0, limit)) {
+    const source = e.source?.trim() || "Google News";
+    const title = stripPublisherSuffix(e.title, e.source);
+    if (!title || !e.link) continue;
     // skip channel title echoes
     if (title.includes("Google 뉴스") || title.includes("Google News")) continue;
-    const iso = parseSourceTime(pub, { zone: "UTC" }).iso ?? "";
+    const iso = parseSourceTime(e.pubDate, { zone: "UTC" }).iso ?? "";
     items.push({
-      id: `gn-${Math.abs(hashStr(link + title)).toString(36)}`,
+      id: `gn-${Math.abs(hashStr(e.link + title)).toString(36)}`,
       title,
-      url: link,
+      url: e.link,
       source,
       datetime: iso,
       query,
