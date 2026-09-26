@@ -52,6 +52,8 @@ import { importTradeCsv, type ImporterId } from "@/lib/export-desk/parse-import"
 import { useExportMacro, useIndustryMonthlyPrices, useKospiCapQuotes } from "@/lib/export-desk/use-macro";
 import { useLiveTrade } from "@/lib/export-desk/use-live";
 import { ExportDualChart } from "@/components/export-desk/ExportDualChart";
+import { ChartFrame } from "@/components/charts/core/ChartFrame";
+import { chartExportName } from "@/lib/charts/tools";
 import { hsName, proxyForKey } from "@/lib/export-desk/hs-map";
 import type { TradeObservation } from "@/lib/export-desk/parse-import";
 import { cn } from "@/lib/utils";
@@ -342,6 +344,8 @@ function TotalPanel() {
   const demo = useExportDeskStore((s) => s.demoMode);
   const exports = useExportSeries("TOTAL");
   const macro = useExportMacro();
+  // D9: hook hoisted out of JSX (was called behind `demo && …`).
+  const allObservations = useAllObservations();
   const kospiMonth = useMemo(
     () =>
       resampleDailyToMonthEnd(
@@ -401,6 +405,8 @@ function TotalPanel() {
 
   const last = chart.filter((r) => r.exp != null).at(-1);
   const lastK = chart.filter((r) => r.kospi != null).at(-1);
+  const totalSource =
+    demo && !allObservations.some((o) => o.categoryId === "TOTAL" && o.sourceFile !== "DEMO") ? "DEMO" : last ? "FRED/OECD XTEXVA01KRM667S" : "대기";
 
   return (
     <section className="desk-card desk-card-navy p-4 space-y-4">
@@ -475,17 +481,14 @@ function TotalPanel() {
                     : "수출=100"
             }
             bName={settings.chartMode === "growth" ? "KOSPI YoY" : settings.chartMode === "absolute" ? "KOSPI" : "KOSPI=100"}
+            source={`수출 ${totalSource} · KOSPI ${macro.data?.source ?? "—"}`}
+            asOf={macro.data?.fetchedAt ?? null}
+            mode={settings.chartMode === "growth" ? "월간 · 전년 대비 %" : settings.chartMode === "absolute" ? "월간 · 수출 USD(좌) / KOSPI(우)" : settings.chartMode === "krw" ? "월간 · 원화 환산" : "월간 · 기준=100"}
           />
         </div>
       )}
       <Provenance
-        source={
-          demo && !useAllObservations().some((o) => o.categoryId === "TOTAL" && o.sourceFile !== "DEMO")
-            ? "DEMO"
-            : last
-              ? "FRED/OECD XTEXVA01KRM667S"
-              : "대기"
-        }
+        source={totalSource}
         period={`${chart[0]?.period ?? "—"} ~ ${chart.at(-1)?.period ?? "—"}`}
         ingested={macro.data?.fetchedAt ?? "—"}
         taxonomy={getCore20().taxonomyVersion}
@@ -659,10 +662,10 @@ function AllIndustriesPanel({ onOpen }: { onOpen: (cat: string) => void }) {
     return rows.sort((a, b) => b.value - a.value);
   }, [observations, q, onlyMapped, exposures, core]);
 
-  const bar = cats
-    .filter((c) => c.id.startsWith("hs2:") && c.value > 0)
-    .slice(0, 15)
-    .map((c) => ({ name: c.name.replace(/ \(HS.*$/, ""), value: c.value / 1e9, id: c.id }));
+  const barRows = cats.filter((c) => c.id.startsWith("hs2:") && c.value > 0).slice(0, 15);
+  const bar = barRows.map((c) => ({ name: c.name.replace(/ \(HS.*$/, ""), value: c.value / 1e9, id: c.id }));
+  const barAsOf = barRows.reduce((m, c) => (c.period > m ? c.period : m), ""); // ked-allow-string-date-sort: single-format time series
+  const barSources = [...new Set(observations.filter((o) => barRows.some((c) => c.id === o.categoryId)).map((o) => o.sourceFile))].slice(0, 2).join(", ");
 
   return (
     <section className="desk-card p-4">
@@ -674,16 +677,32 @@ function AllIndustriesPanel({ onOpen }: { onOpen: (cat: string) => void }) {
         </label>
       </div>
       {bar.length > 0 && (
-        <div className="h-[260px] mb-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={bar} layout="vertical" margin={{ left: 80 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-              <XAxis type="number" tick={{ fontSize: 10 }} unit="bn" />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={76} />
-              <Tooltip formatter={(v: number) => `$${Number(v).toFixed(1)}bn`} />
-              <Bar dataKey="value" fill="#d4a017" name="수출 $bn" onClick={(d) => onOpen(String((d as { id?: string }).id))} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="mb-4">
+          <ChartFrame
+            title="수출 상위 품목 (HS 2단위, 품목별 최신월)"
+            unit="USD bn"
+            source={barSources || "수출 관측값"}
+            asOf={barAsOf || null}
+            ariaLabel={`수출 상위 ${bar.length}개 품목 막대 차트: ${bar.slice(0, 5).map((b) => `${b.name} ${b.value.toFixed(1)}bn`).join(", ")}`}
+            pngName={chartExportName("KR", "EXPORT", "top-hs2", "png", Date.now())}
+            csv={() => ({
+              text: ["id,name,period,value_usd_bn", ...barRows.map((c) => `${c.id},"${c.name.replace(/"/g, "'")}",${c.period},${(c.value / 1e9).toFixed(3)}`)].join("\n"),
+              filename: chartExportName("KR", "EXPORT", "top-hs2", "csv", Date.now()),
+            })}
+            testId="export-top-bar"
+          >
+            <div className="h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={bar} layout="vertical" margin={{ left: 80 }} accessibilityLayer>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} unit="bn" />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={76} />
+                  <Tooltip formatter={(v: number) => `$${Number(v).toFixed(1)}bn`} />
+                  <Bar dataKey="value" fill="#d4a017" name="수출 $bn" onClick={(d) => onOpen(String((d as { id?: string }).id))} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartFrame>
         </div>
       )}
       <div className="overflow-auto max-h-[520px] scroll-thin">
