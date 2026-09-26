@@ -51,6 +51,19 @@ export interface FeedCluster {
   members?: FeedClusterMember[];
 }
 
+/** ETF enrichment (F5.2) from the live ETF list; null = not provided by the source. */
+export interface FeedEtfMatch {
+  code: string;
+  name: string;
+  price: number | null;
+  changePct: number | null;
+  volume: number | null;
+  /** 시가총액 (억) */
+  marketSum: number | null;
+  issuer: string | null;
+  retirementEligible: boolean | null;
+}
+
 export interface FeedItem {
   /** stable: sourceId + native id, else hash of canonical URL */
   id: string;
@@ -84,6 +97,8 @@ export interface FeedItem {
   cluster?: FeedCluster;
   /** Publisher when the registry source is an aggregator (e.g. Naver → 연합뉴스). */
   outlet?: string;
+  /** Matched ETF (ETF news only). */
+  etf?: FeedEtfMatch;
 }
 
 export type ResearchCategoryV2 =

@@ -90,7 +90,8 @@ function record(id, ok, detail) {
 async function mockFeed(page, byRegion) {
   await page.route("**/api/feed?**", async (route) => {
     const u = new URL(route.request().url());
-    const body = byRegion[u.searchParams.get("region") ?? "KR"] ?? { items: [], nextCursor: null, partial: false, sources: [], generatedAt: iso(0) };
+    const key = u.searchParams.get("group") ?? u.searchParams.get("region") ?? "KR";
+    const body = byRegion[key] ?? { items: [], nextCursor: null, partial: false, sources: [], generatedAt: iso(0) };
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
 }
@@ -359,6 +360,133 @@ await run(browser, "AT-20", async (page) => {
   const { readFileSync } = await import("node:fs");
   const csv = readFileSync(path, "utf8").replace(/^\uFEFF/, "").trim().split("\n");
   record("AT-20", sorted && csv.length - 1 === visibleRows && /street-moves-\d{8}-\d{4}\.csv$/.test(dl.suggestedFilename()), `dateDesc=${sorted} visible=${visibleRows} csvRows=${csv.length - 1} file=${dl.suggestedFilename()}`);
+});
+
+
+// ── P4: ETF news + robotics ─────────────────────────────────────────────
+// synthetic fixture (format sample), not market data
+const ETF_PAGE = {
+  items: [
+    item({ id: "qa:etf1", sourceId: "gn-etf-kr", sourceName: "Google 뉴스 (ETF)", outlet: "QA 경제", title: "[QA 샘플] TIGER QA로봇액티브 ETF 신규 상장", url: "https://example.com/qa/etf1", publishedAt: iso(30), topics: ["etf", "stage:listed", "theme:robot-ai", "brand:TIGER"], etf: { code: "0QA000", name: "TIGER QA로봇액티브", price: 10250, changePct: 1.25, volume: 123456, marketSum: 321, issuer: "미래에셋자산운용", retirementEligible: true } }),
+    item({ id: "qa:etf2", sourceId: "hankyung-finance", sourceName: "한국경제 증권", sourceTier: 2, title: "[QA 샘플] ETF 5종 상장폐지", url: "https://example.com/qa/etf2", publishedAt: iso(600), topics: ["etf", "stage:delisting"] }),
+  ],
+  nextCursor: null,
+  partial: false,
+  sources: [
+    { id: "gn-etf-kr", ok: true, count: 1, state: "ok" },
+    { id: "hankyung-finance", ok: true, count: 1, state: "ok" },
+  ],
+  generatedAt: iso(0),
+};
+
+// synthetic fixture (format sample), not market data
+const ETF_SNAPSHOT = {
+  topTrading: [{ code: "0QA001", name: "KODEX QA200", price: 35000, changePct: 0.5, volume: 1000, amount: 10, marketSum: 999, issuer: "삼성자산운용" }],
+  robotAi: [{ code: "0QA000", name: "TIGER QA로봇액티브", price: 10250, changePct: 1.25, volume: 123456, amount: 5, marketSum: 321, issuer: "미래에셋자산운용" }],
+  total: 2,
+  error: null,
+  fetchedAt: iso(0),
+};
+
+await run(browser, "AT-22", async (page) => {
+  await mockFeed(page, { etf: ETF_PAGE });
+  await mockServerFns(page, { getEtfNewsSnapshot: () => ETF_SNAPSHOT });
+  await page.goto(`${BASE}/news/etf`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-feed-id="qa:etf1"]', { timeout: 20_000 });
+  const strip = await page.textContent('[data-feed-id="qa:etf1"] [data-etf-match]');
+  const href = await page.getAttribute('[data-feed-id="qa:etf1"] [data-etf-match]', "href");
+  const stage = await page.isVisible('[data-feed-id="qa:etf1"] [data-chip="stage:listed"]');
+  const delist = await page.isVisible('[data-feed-id="qa:etf2"] [data-chip="stage:delisting"]');
+  const ok = /0QA000/.test(strip ?? "") && /10,250/.test(strip ?? "") && /123,456/.test(strip ?? "") && href === "/etfs/0QA000" && stage && delist;
+  // /etfs "ETF 뉴스" tab renders the same desk.
+  await page.goto(`${BASE}/etfs`, { waitUntil: "domcontentloaded" });
+  let tabOk = false;
+  for (let i = 0; i < 6 && !tabOk; i++) {
+    await page.click('[data-testid="etf-news-tab"]');
+    tabOk = await page.waitForSelector('[data-testid="etf-news-desk"] [data-feed-id="qa:etf1"]', { timeout: 4_000 }).then(() => true).catch(() => false);
+  }
+  if (!tabOk) throw new Error("/etfs ETF 뉴스 tab did not render the desk");
+  record("AT-22", ok, `strip="${(strip ?? "").replace(/\s+/g, " ").trim()}" href=${href} stageChip=${stage} delistChip=${delist} etfsTab=ok`);
+});
+
+// synthetic fixture (format sample), not market data
+const UNIVERSE_MOCK = {
+  kr: [
+    { key: "KR:277810", market: "KR", code: "277810", name: "레인보우로보틱스", nameEn: "Rainbow Robotics", segment: "humanoid", exposure: "pure-play", kind: "seed", price: 100000, changePct: 2, pos52w: 40, marketCap: 10000, volume: 1000, currency: "KRW", asOf: null, source: "네이버 시세", delay: "약 30초 캐시" },
+    { key: "KR:466100", market: "KR", code: "466100", name: "클로봇", nameEn: "CLOBOT", segment: "software-ai", exposure: "pure-play", kind: "seed", price: 20000, changePct: -1, pos52w: 10, marketCap: 2000, volume: 500, currency: "KRW", asOf: null, source: "네이버 시세", delay: "약 30초 캐시" },
+  ],
+  us: [{ key: "US:ISRG", market: "US", code: "ISRG", name: "Intuitive Surgical", nameEn: "Sample", segment: "medical", exposure: "pure-play", kind: "seed", price: 500, changePct: 1, pos52w: 70, marketCap: null, volume: 1000, currency: "USD", asOf: iso(20), source: "Yahoo Finance", delay: "지연 15분" }],
+  unresolved: [{ market: "KR", name: "QA미확인로봇", reason: "종목 검색에서 정확히 같은 이름이 없음" }],
+  fetchedAt: iso(0),
+};
+
+// synthetic fixture (format sample), not market data
+const ROBOT_MARKET = {
+  items: [item({ id: "qa:rb1", sourceId: "robot-report", sourceName: "The Robot Report", sourceTier: 2, lang: "en", region: "US", title: "[QA sample] Humanoid maker raises Series B", url: "https://example.com/qa/rb1", publishedAt: iso(90), topics: ["robotics", "robot:humanoid", "robot:funding-ma"] })],
+  nextCursor: null,
+  partial: false,
+  sources: [{ id: "robot-report", ok: true, count: 1, state: "ok" }],
+  generatedAt: iso(0),
+};
+const ROBOT_POLICY_DOWN = { items: [], nextCursor: null, partial: true, sources: [{ id: "federal-register", ok: false, count: 0, state: "error" }, { id: "gn-robot-policy-kr", ok: false, count: 0, state: "timeout" }], generatedAt: iso(0) };
+
+await run(browser, "AT-23", async (page) => {
+  await mockFeed(page, { "robotics-market": ROBOT_MARKET, "robotics-policy": ROBOT_POLICY_DOWN });
+  await mockServerFns(page, {
+    getRoboticsUniverse: () => UNIVERSE_MOCK,
+    getRoboticsEtfs: () => ({ kr: [], us: [], unresolved: [], krError: null, fetchedAt: iso(0) }),
+    getRoboticsResearch: () => ({ kr: { industry: [], company: [], paths: ["v2"], errors: [], fetchedAt: iso(0) }, street: { notes: [], headlines: [], note: "QA", fetchedAt: iso(0) } }),
+  });
+  await page.goto(`${BASE}/robotics`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-kpi="kr-basket"]', { timeout: 20_000 });
+  await page.waitForFunction(() => document.querySelector('[data-kpi="news-24h"]')?.textContent?.includes("1건"), null, { timeout: 20_000 });
+  const tiles = await page.$$eval("[data-kpi]", (els) => els.map((e) => ({ id: e.getAttribute("data-kpi"), text: e.textContent ?? "", source: e.lastElementChild?.textContent ?? "" })));
+  const allSourced = tiles.length === 5 && tiles.every((t) => t.source.trim().length > 3);
+  const kr = tiles.find((t) => t.id === "kr-basket")?.text ?? "";
+  const policy = tiles.find((t) => t.id === "policy-7d")?.text ?? "";
+  const ok = allSourced && /\+0\.50%/.test(kr) && /—/.test(policy) && /응답 없음/.test(policy);
+  record("AT-23", ok, `tiles=${tiles.length} sourced=${allSourced} kr="${kr.slice(0, 40)}" policy="${policy.slice(0, 60)}"`);
+});
+
+await run(browser, "AT-25", async (page) => {
+  await mockFeed(page, {});
+  await mockServerFns(page, {
+    getRoboticsUniverse: () => UNIVERSE_MOCK,
+    getRoboticsCompanyMeta: () => ({ latestNews: { "KR:277810": iso(30) }, latestResearch: {}, fetchedAt: iso(0) }),
+  });
+  await page.goto(`${BASE}/robotics?tab=companies`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="robotics-companies-kr"] tr[data-row]', { timeout: 20_000 });
+  const rows = await page.$$eval("tr[data-row]", (trs) => trs.map((t) => t.getAttribute("data-row")));
+  const hiddenOk = !(await page.content()).includes("QA미확인로봇</td>") && rows.length === 3;
+  const note = await page.textContent('[data-testid="robotics-unresolved-note"]');
+  const noteLink = await page.getAttribute('[data-testid="robotics-unresolved-note"] a', "href");
+  // Row click → news drawer.
+  await page.click('tr[data-row="KR:466100"] td:nth-child(2)');
+  const drawer = await page.waitForSelector("text=네이버 종목 뉴스 · 최신순", { timeout: 10_000 }).then(() => true).catch(() => false);
+  // Unmocked server: the real resolver runs (offline → unresolved) and lists names in Source Health.
+  const real = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const p2 = await real.newPage();
+  await p2.goto(`${BASE}/robotics?tab=companies`, { waitUntil: "domcontentloaded" });
+  await p2.waitForFunction(() => !document.body.textContent?.includes("수신 중…") || document.querySelector('[data-testid="robotics-unresolved-note"]'), null, { timeout: 60_000 }).catch(() => undefined);
+  await p2.waitForTimeout(1_000);
+  await p2.goto(`${BASE}/status/sources`, { waitUntil: "domcontentloaded" });
+  await p2.waitForSelector("text=로봇 유니버스 검증", { timeout: 20_000 });
+  const healthText = await p2.evaluate(() => {
+    const li = [...document.querySelectorAll("li")].find((el) => el.textContent?.includes("로봇 유니버스 검증"));
+    return li?.textContent ?? "";
+  });
+  await real.close();
+  const listed = /미확인|유니버스 종목을 하나도/.test(healthText);
+  record("AT-25", hiddenOk && /1개/.test(note ?? "") && noteLink === "/status/sources" && drawer && listed, `rows=${rows.join(",")} hidden=${hiddenOk} note="${(note ?? "").slice(0, 40)}" drawer=${drawer} healthListed=${listed}`);
+});
+
+await run(browser, "AT-28", async (page) => {
+  await page.goto(`${BASE}/industry/robotics`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="robotics-crosslink"]', { timeout: 20_000 });
+  const cross = await page.getAttribute('[data-testid="robotics-crosslink"] a', "href");
+  const side = await page.getAttribute('[data-sector-link="robotics"]', "href");
+  const nav = await page.$$eval('a[href="/robotics"]', (as) => as.length);
+  record("AT-28", cross === "/robotics" && side === "/robotics" && nav >= 3, `crosslink=${cross} sidebarSector=${side} links=${nav} (CLOBOT nameEn covered by unit test)`);
 });
 
 await browser.close();

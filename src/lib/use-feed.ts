@@ -10,8 +10,12 @@ import { useAppStore, useDisabledSources } from "@/lib/store";
 import { getMarketSnapshot, getNaverAiBriefing, getUsCalendar } from "@/lib/feed-fns";
 import { UNIVERSE } from "@/data/universe";
 
+export type FeedGroupId = "etf" | "robotics-market" | "robotics-policy";
+
 export interface UseFeedOptions {
   region: Region;
+  /** Theme group (`/api/feed?group=`): ETF news, robotics market/policy. */
+  group?: FeedGroupId;
   kinds?: ItemKind[];
   topics?: string[];
   tickers?: string[];
@@ -24,6 +28,7 @@ export interface UseFeedOptions {
 
 async function fetchFeedPage(opts: UseFeedOptions, cursor: string | null): Promise<FeedPage> {
   const params = new URLSearchParams({ region: opts.region, limit: String(opts.limit ?? 50) });
+  if (opts.group) params.set("group", opts.group);
   if (opts.kinds?.length) params.set("kinds", opts.kinds.join(","));
   if (opts.topics?.length) params.set("topics", opts.topics.join(","));
   if (opts.tickers?.length) params.set("tickers", opts.tickers.join(","));
@@ -72,7 +77,7 @@ export function useFeed(opts: UseFeedOptions) {
   const disabled = useDisabledSources();
   const watch = useWatchContext();
   const q = useInfiniteQuery({
-    queryKey: ["feed", opts.endpoint ?? "/api/feed", opts.region, opts.kinds?.join(",") ?? "", opts.topics?.join(",") ?? "", opts.tickers?.join(",") ?? "", opts.limit ?? 50],
+    queryKey: ["feed", opts.endpoint ?? "/api/feed", opts.region, opts.group ?? "", opts.kinds?.join(",") ?? "", opts.topics?.join(",") ?? "", opts.tickers?.join(",") ?? "", opts.limit ?? 50],
     queryFn: ({ pageParam }) => fetchFeedPage(opts, pageParam),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor ?? undefined,

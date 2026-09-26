@@ -165,8 +165,32 @@ export function secAtomCik(title: string): string | null {
 }
 
 /** Yahoo `v8/finance/chart` payload → snapshot numbers from `meta` (no invention). */
+/**
+ * Previous session close from daily bars: when the last bar is the session of
+ * `regularMarketTime`, the prior finite close; otherwise the last bar's close.
+ */
+function prevCloseFromBars(result: { timestamp?: unknown; indicators?: { quote?: { close?: unknown }[] } } | undefined, marketTimeSec: number | null, gmtOffsetSec: number): number | null {
+  const ts = Array.isArray(result?.timestamp) ? (result!.timestamp as unknown[]) : null;
+  const closes = Array.isArray(result?.indicators?.quote?.[0]?.close) ? (result!.indicators!.quote![0]!.close as unknown[]) : null;
+  if (!ts || !closes || !ts.length || marketTimeSec == null) return null;
+  const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+  let last = -1;
+  for (let i = Math.min(ts.length, closes.length) - 1; i >= 0; i--) {
+    if (finite(closes[i]) && finite(ts[i])) {
+      last = i;
+      break;
+    }
+  }
+  if (last < 0) return null;
+  const day = (sec: number) => Math.floor((sec + gmtOffsetSec) / 86_400);
+  if (day(ts[last] as number) !== day(marketTimeSec)) return closes[last] as number;
+  for (let i = last - 1; i >= 0; i--) if (finite(closes[i])) return closes[i] as number;
+  return null;
+}
+
 export function yahooChartSnapshot(payload: unknown): {
   symbol: string;
+  name: string | null;
   price: number | null;
   prevClose: number | null;
   change: number | null;
@@ -175,25 +199,44 @@ export function yahooChartSnapshot(payload: unknown): {
   asOf: string | null;
   delayMinutes: number | null;
   exchange: string | null;
+  high52: number | null;
+  low52: number | null;
+  volume: number | null;
+  instrumentType: string | null;
 } | null {
-  const p = payload as { chart?: { result?: { meta?: Record<string, unknown> }[] } } | null;
-  const meta = p?.chart?.result?.[0]?.meta;
+  const p = payload as { chart?: { result?: { meta?: Record<string, unknown>; timestamp?: unknown; indicators?: { quote?: { close?: unknown }[] } }[] } } | null;
+  const result = p?.chart?.result?.[0];
+  const meta = result?.meta;
   if (!meta) return null;
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   const price = num(meta.regularMarketPrice);
-  const prev = num(meta.chartPreviousClose) ?? num(meta.previousClose);
+  const tsec = num(meta.regularMarketTime);
+  // 1D basis: explicit previous close → daily bars → chartPreviousClose only
+  // when it is the prior session (range=1d or no bars/range given).
+  const hasBars = Array.isArray(result?.timestamp) && (result!.timestamp as unknown[]).length > 0;
+  const range = str(meta.range);
+  const prev =
+    num(meta.previousClose) ??
+    num(meta.regularMarketPreviousClose) ??
+    prevCloseFromBars(result, tsec, num(meta.gmtoffset) ?? 0) ??
+    (!hasBars && (range == null || range === "1d") ? num(meta.chartPreviousClose) : null);
   const change = price != null && prev != null ? price - prev : null;
   const changePct = change != null && prev ? (change / prev) * 100 : null;
-  const tsec = num(meta.regularMarketTime);
   return {
     symbol: String(meta.symbol ?? ""),
+    name: str(meta.longName) ?? str(meta.shortName),
     price,
     prevClose: prev,
     change,
     changePct,
-    currency: typeof meta.currency === "string" ? meta.currency : null,
+    currency: str(meta.currency),
     asOf: tsec ? new Date(tsec * 1000).toISOString() : null,
     delayMinutes: num(meta.exchangeDataDelayedBy),
-    exchange: typeof meta.exchangeName === "string" ? meta.exchangeName : null,
+    exchange: str(meta.exchangeName),
+    high52: num(meta.fiftyTwoWeekHigh),
+    low52: num(meta.fiftyTwoWeekLow),
+    volume: num(meta.regularMarketVolume),
+    instrumentType: str(meta.instrumentType),
   };
 }

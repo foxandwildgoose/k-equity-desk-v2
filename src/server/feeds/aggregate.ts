@@ -8,6 +8,9 @@ import { clusterItems } from "@/lib/feed/cluster";
 import { scoreImportance } from "@/lib/feed/importance";
 import { pageAfterCursor, sortNewestFirst } from "@/lib/feed/sort";
 import type { FeedItem, FeedPage, FeedSourceResult, ItemKind, Region } from "@/lib/feed/types";
+import { enrichEtfStory, type EtfRowLike } from "@/lib/etf-news";
+import { isRobotPolicyText, policyStatusTopicIds, robotTopicIds } from "@/lib/robotics/classify";
+import { isRoboticsText } from "@/data/research-taxonomy";
 
 export const FEED_SOURCES: Record<Region, string[]> = {
   KR: [
@@ -49,6 +52,50 @@ export const FEED_SOURCES: Record<Region, string[]> = {
 };
 FEED_SOURCES.GLOBAL = [...FEED_SOURCES.KR, ...FEED_SOURCES.US, "hankyung-international"];
 
+/** Theme pages (F5 / F6.3 / F6.4): fixed source sets + server-side post-processing. */
+export const FEED_GROUPS = ["etf", "robotics-market", "robotics-policy"] as const;
+export type FeedGroup = (typeof FEED_GROUPS)[number];
+
+export const GROUP_SOURCES: Record<FeedGroup, string[]> = {
+  etf: ["gn-etf-kr", "gn-etf-brands", "hankyung-finance", "naver-news-search-etf"],
+  "robotics-market": ["robot-report", "irobotnews", "ieee-spectrum-robotics", "gn-robotics-kr", "gn-robotics-en", "hankyung-it"],
+  "robotics-policy": ["federal-register", "gn-robot-policy-kr", "gn-robot-policy-en", "irobotnews"],
+};
+
+/** Sources whose every item is on-theme (others are keyword-filtered). */
+const ROBOT_NATIVE = new Set(["robot-report", "irobotnews", "ieee-spectrum-robotics", "gn-robotics-kr", "gn-robotics-en"]);
+
+async function liveEtfList(): Promise<EtfRowLike[]> {
+  try {
+    const { fetchAllEtfs } = await import("@/server/etf-market");
+    return await Promise.race([fetchAllEtfs(), new Promise<EtfRowLike[]>((resolve) => setTimeout(() => resolve([]), 4_000))]);
+  } catch {
+    return [];
+  }
+}
+
+function addTopics(it: FeedItem, extra: string[]): FeedItem {
+  if (!extra.length) return it;
+  return { ...it, topics: [...new Set([...it.topics, ...extra])] };
+}
+
+/** Keep on-theme items and stamp theme topics (ETF match / robot topics / status chips). */
+export async function postProcessGroup(group: FeedGroup, items: FeedItem[]): Promise<FeedItem[]> {
+  if (group === "etf") {
+    const etfs = await liveEtfList();
+    return items.map((it) => enrichEtfStory(it, etfs)).filter((x): x is FeedItem => x != null);
+  }
+  const text = (it: FeedItem) => `${it.title} ${it.snippet ?? ""}`;
+  if (group === "robotics-market") {
+    return items
+      .filter((it) => ROBOT_NATIVE.has(it.sourceId) || isRoboticsText(text(it)))
+      .map((it) => addTopics(it, ["robotics", ...robotTopicIds(text(it)), ...(isRobotPolicyText(text(it)) ? ["policy"] : [])]));
+  }
+  return items
+    .filter((it) => it.sourceId !== "irobotnews" || isRobotPolicyText(text(it)))
+    .map((it) => addTopics(it, ["policy", "robotics", ...(it.topics.some((t) => t.startsWith("status:")) ? [] : policyStatusTopicIds(`${text(it)} ${it.outlet ?? ""}`))]));
+}
+
 const KIND_BY_ID = new Map(SOURCE_REGISTRY.map((s) => [s.id, s.kind]));
 
 export interface FeedQuery {
@@ -60,13 +107,15 @@ export interface FeedQuery {
   limit?: number;
   /** Extra source ids (e.g. robotics/etf groups). */
   sourceIds?: string[];
+  /** Theme group: replaces region sources and post-processes items. */
+  group?: FeedGroup;
   budgetMs?: number;
   now?: number;
 }
 
 function sourceIdsFor(q: FeedQuery): string[] {
-  const ids = new Set<string>(q.sourceIds ?? []);
-  if (!q.sourceIds?.length) for (const r of q.regions) for (const id of FEED_SOURCES[r]) ids.add(id);
+  const ids = new Set<string>(q.group ? GROUP_SOURCES[q.group] : (q.sourceIds ?? []));
+  if (!q.group && !q.sourceIds?.length) for (const r of q.regions) for (const id of FEED_SOURCES[r]) ids.add(id);
   const kinds = new Set(q.kinds ?? []);
   return [...ids].filter((id) => !kinds.size || kinds.has(KIND_BY_ID.get(id) ?? "news"));
 }
@@ -86,12 +135,13 @@ const AGG_TTL_MS = 15_000;
 /** Merge + cluster + score + sort (full list, newest first). */
 export async function collectFeed(q: FeedQuery): Promise<{ items: FeedItem[]; sources: FeedSourceResult[]; partial: boolean; generatedAt: string }> {
   const ids = sourceIdsFor(q).sort();
-  const key = ids.join(",");
+  const key = `${q.group ?? ""}|${ids.join(",")}`;
   const hit = aggCache.get(key);
   const now = q.now ?? Date.now();
   if (hit && now - hit.at < AGG_TTL_MS) return hit;
   const { results, partial } = await runSources(ids, { budgetMs: q.budgetMs ?? 7_500, perSourceMs: 7_000, now });
-  const merged = results.flatMap((r) => r.items);
+  const raw = results.flatMap((r) => r.items);
+  const merged = q.group ? await postProcessGroup(q.group, raw) : raw;
   const clustered = clusterItems(merged).map((it) => ({ ...it, importance: scoreImportance(it, { now }) }));
   const out = {
     at: now,

@@ -4,6 +4,7 @@ import { ChevronDown, ExternalLink } from "lucide-react";
 import type { FeedItem } from "@/lib/feed/types";
 import type { DisplayZone } from "@/lib/feed/time";
 import { TimeStamp } from "@/components/feed/TimeStamp";
+import { EtfMatchStrip, ThemeChips } from "@/components/feed/ThemeChips";
 import { cn } from "@/lib/utils";
 
 const KIND_LABEL: Record<FeedItem["kind"], string> = {
@@ -121,6 +122,7 @@ export function FeedRow({
   const [open, setOpen] = useState(false);
   const members = item.cluster?.members ?? [];
   const reasons = item.importance?.reasons ?? [];
+  const hasThemeChips = item.topics.some((t) => (t.startsWith("stage:") && t !== "stage:other") || t.startsWith("status:") || t.startsWith("robot:"));
   const tierColor =
     item.importance?.tier === "flash" ? "bg-price-up" : item.importance?.tier === "high" ? "bg-amber-500" : "bg-transparent";
   return (
@@ -155,8 +157,10 @@ export function FeedRow({
         {item.snippet && !item.paywalled && (
           <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">{item.snippet}</p>
         )}
-        {(item.tickers.length > 0 || (showReasons && reasons.length > 0) || members.length > 0) && (
+        {item.etf && <EtfMatchStrip etf={item.etf} />}
+        {(item.tickers.length > 0 || (showReasons && reasons.length > 0) || members.length > 0 || hasThemeChips) && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            <ThemeChips item={item} />
             <TickerChips tickers={item.tickers} labelFor={labelFor} />
             {showReasons &&
               item.importance &&

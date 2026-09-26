@@ -14,6 +14,7 @@ import { Route as DisclosuresRouteImport } from './routes/disclosures'
 import { Route as EtfsRouteImport } from './routes/etfs'
 import { Route as ExportDeskRouteImport } from './routes/export-desk'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as RoboticsRouteImport } from './routes/robotics'
 import { Route as UsLinkRouteImport } from './routes/us-link'
 import { Route as UsResearchRouteImport } from './routes/us-research'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
@@ -23,6 +24,7 @@ import { Route as EtfsIndexRouteImport } from './routes/etfs.index'
 import { Route as EtfsCodeRouteImport } from './routes/etfs.$code'
 import { Route as IndustrySectorIdRouteImport } from './routes/industry.$sectorId'
 import { Route as NewsIndexRouteImport } from './routes/news.index'
+import { Route as NewsEtfRouteImport } from './routes/news.etf'
 import { Route as NewsKrRouteImport } from './routes/news.kr'
 import { Route as NewsUsRouteImport } from './routes/news.us'
 import { Route as StatusSourcesRouteImport } from './routes/status.sources'
@@ -54,6 +56,11 @@ const ExportDeskRoute = ExportDeskRouteImport.update({
 const ResearchRoute = ResearchRouteImport.update({
   id: '/research',
   path: '/research',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoboticsRoute = RoboticsRouteImport.update({
+  id: '/robotics',
+  path: '/robotics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UsLinkRoute = UsLinkRouteImport.update({
@@ -101,6 +108,11 @@ const NewsIndexRoute = NewsIndexRouteImport.update({
   path: '/news/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NewsEtfRoute = NewsEtfRouteImport.update({
+  id: '/news/etf',
+  path: '/news/etf',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NewsKrRoute = NewsKrRouteImport.update({
   id: '/news/kr',
   path: '/news/kr',
@@ -143,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/etfs': typeof EtfsRouteWithChildren
   '/export-desk': typeof ExportDeskRoute
   '/research': typeof ResearchRoute
+  '/robotics': typeof RoboticsRoute
   '/us-link': typeof UsLinkRoute
   '/us-research': typeof UsResearchRouteWithChildren
   '/watchlist': typeof WatchlistRoute
@@ -150,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/api/market-stream': typeof ApiMarketStreamRoute
   '/etfs/$code': typeof EtfsCodeRoute
   '/industry/$sectorId': typeof IndustrySectorIdRoute
+  '/news/etf': typeof NewsEtfRoute
   '/news/kr': typeof NewsKrRoute
   '/news/us': typeof NewsUsRoute
   '/status/sources': typeof StatusSourcesRoute
@@ -165,12 +179,14 @@ export interface FileRoutesByTo {
   '/disclosures': typeof DisclosuresRoute
   '/export-desk': typeof ExportDeskRoute
   '/research': typeof ResearchRoute
+  '/robotics': typeof RoboticsRoute
   '/us-link': typeof UsLinkRoute
   '/watchlist': typeof WatchlistRoute
   '/api/feed': typeof ApiFeedRoute
   '/api/market-stream': typeof ApiMarketStreamRoute
   '/etfs/$code': typeof EtfsCodeRoute
   '/industry/$sectorId': typeof IndustrySectorIdRoute
+  '/news/etf': typeof NewsEtfRoute
   '/news/kr': typeof NewsKrRoute
   '/news/us': typeof NewsUsRoute
   '/status/sources': typeof StatusSourcesRoute
@@ -188,6 +204,7 @@ export interface FileRoutesById {
   '/etfs': typeof EtfsRouteWithChildren
   '/export-desk': typeof ExportDeskRoute
   '/research': typeof ResearchRoute
+  '/robotics': typeof RoboticsRoute
   '/us-link': typeof UsLinkRoute
   '/us-research': typeof UsResearchRouteWithChildren
   '/watchlist': typeof WatchlistRoute
@@ -195,6 +212,7 @@ export interface FileRoutesById {
   '/api/market-stream': typeof ApiMarketStreamRoute
   '/etfs/$code': typeof EtfsCodeRoute
   '/industry/$sectorId': typeof IndustrySectorIdRoute
+  '/news/etf': typeof NewsEtfRoute
   '/news/kr': typeof NewsKrRoute
   '/news/us': typeof NewsUsRoute
   '/status/sources': typeof StatusSourcesRoute
@@ -213,6 +231,7 @@ export interface FileRouteTypes {
     | '/etfs'
     | '/export-desk'
     | '/research'
+    | '/robotics'
     | '/us-link'
     | '/us-research'
     | '/watchlist'
@@ -220,6 +239,7 @@ export interface FileRouteTypes {
     | '/api/market-stream'
     | '/etfs/$code'
     | '/industry/$sectorId'
+    | '/news/etf'
     | '/news/kr'
     | '/news/us'
     | '/status/sources'
@@ -235,12 +255,14 @@ export interface FileRouteTypes {
     | '/disclosures'
     | '/export-desk'
     | '/research'
+    | '/robotics'
     | '/us-link'
     | '/watchlist'
     | '/api/feed'
     | '/api/market-stream'
     | '/etfs/$code'
     | '/industry/$sectorId'
+    | '/news/etf'
     | '/news/kr'
     | '/news/us'
     | '/status/sources'
@@ -257,6 +279,7 @@ export interface FileRouteTypes {
     | '/etfs'
     | '/export-desk'
     | '/research'
+    | '/robotics'
     | '/us-link'
     | '/us-research'
     | '/watchlist'
@@ -264,6 +287,7 @@ export interface FileRouteTypes {
     | '/api/market-stream'
     | '/etfs/$code'
     | '/industry/$sectorId'
+    | '/news/etf'
     | '/news/kr'
     | '/news/us'
     | '/status/sources'
@@ -281,12 +305,14 @@ export interface RootRouteChildren {
   EtfsRoute: typeof EtfsRouteWithChildren
   ExportDeskRoute: typeof ExportDeskRoute
   ResearchRoute: typeof ResearchRoute
+  RoboticsRoute: typeof RoboticsRoute
   UsLinkRoute: typeof UsLinkRoute
   UsResearchRoute: typeof UsResearchRouteWithChildren
   WatchlistRoute: typeof WatchlistRoute
   ApiFeedRoute: typeof ApiFeedRoute
   ApiMarketStreamRoute: typeof ApiMarketStreamRoute
   IndustrySectorIdRoute: typeof IndustrySectorIdRoute
+  NewsEtfRoute: typeof NewsEtfRoute
   NewsKrRoute: typeof NewsKrRoute
   NewsUsRoute: typeof NewsUsRoute
   StatusSourcesRoute: typeof StatusSourcesRoute
@@ -330,6 +356,13 @@ declare module '@tanstack/react-router' {
       path: '/research'
       fullPath: '/research'
       preLoaderRoute: typeof ResearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/robotics': {
+      id: '/robotics'
+      path: '/robotics'
+      fullPath: '/robotics'
+      preLoaderRoute: typeof RoboticsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/us-link': {
@@ -393,6 +426,13 @@ declare module '@tanstack/react-router' {
       path: '/news'
       fullPath: '/news/'
       preLoaderRoute: typeof NewsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/news/etf': {
+      id: '/news/etf'
+      path: '/news/etf'
+      fullPath: '/news/etf'
+      preLoaderRoute: typeof NewsEtfRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/news/kr': {
@@ -479,12 +519,14 @@ const rootRouteChildren: RootRouteChildren = {
   EtfsRoute: EtfsRouteWithChildren,
   ExportDeskRoute: ExportDeskRoute,
   ResearchRoute: ResearchRoute,
+  RoboticsRoute: RoboticsRoute,
   UsLinkRoute: UsLinkRoute,
   UsResearchRoute: UsResearchRouteWithChildren,
   WatchlistRoute: WatchlistRoute,
   ApiFeedRoute: ApiFeedRoute,
   ApiMarketStreamRoute: ApiMarketStreamRoute,
   IndustrySectorIdRoute: IndustrySectorIdRoute,
+  NewsEtfRoute: NewsEtfRoute,
   NewsKrRoute: NewsKrRoute,
   NewsUsRoute: NewsUsRoute,
   StatusSourcesRoute: StatusSourcesRoute,

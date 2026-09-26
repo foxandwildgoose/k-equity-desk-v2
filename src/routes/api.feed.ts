@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { aggregateFeed } from "@/server/feeds/aggregate";
+import { aggregateFeed, FEED_GROUPS } from "@/server/feeds/aggregate";
 import type { ItemKind, Region } from "@/lib/feed/types";
 
 const KINDS = ["news", "research", "disclosure", "filing", "policy", "rating", "briefing"] as const;
 
 const QuerySchema = z.object({
   region: z.enum(["KR", "US", "GLOBAL"]).default("KR"),
+  group: z.enum(FEED_GROUPS).optional(),
   kinds: z
     .string()
     .max(120)
@@ -43,6 +44,7 @@ export const Route = createFileRoute("/api/feed")({
         const q = parsed.data;
         const page = await aggregateFeed({
           regions: [q.region as Region],
+          group: q.group,
           kinds: q.kinds as ItemKind[],
           topics: q.topics,
           tickers: q.tickers,

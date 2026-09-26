@@ -96,6 +96,26 @@ test("Finnhub rows, SEC atom CIK and Yahoo meta snapshot", () => {
   assert.equal(yahooChartSnapshot({}), null);
 });
 
+test("Yahoo 1D change uses the prior session close, never the 5-day chartPreviousClose", () => {
+  const day = 86_400;
+  const t0 = 1_790_000_000 - (1_790_000_000 % day) + 48_600; // 13:30 UTC session open
+  const meta = { symbol: "ISRG", regularMarketPrice: 105, chartPreviousClose: 80, range: "5d", gmtoffset: -14_400, fiftyTwoWeekHigh: 120, fiftyTwoWeekLow: 60, longName: "Sample Corp" };
+  const bars = { timestamp: [t0 - 4 * day, t0 - 3 * day, t0 - 2 * day, t0 - day, t0], indicators: { quote: [{ close: [90, 95, null, 100, 104] }] } };
+  // synthetic fixture (format sample), not market data
+  const live = yahooChartSnapshot({ chart: { result: [{ meta: { ...meta, regularMarketTime: t0 + 3_600 }, ...bars }] } });
+  assert.equal(live!.prevClose, 100);
+  assert.equal(live!.change, 5);
+  assert.equal(live!.high52, 120);
+  assert.equal(live!.low52, 60);
+  assert.equal(live!.name, "Sample Corp");
+  // synthetic fixture (format sample), not market data — latest bar is an earlier session
+  const next = yahooChartSnapshot({ chart: { result: [{ meta: { ...meta, regularMarketTime: t0 + day + 3_600 }, ...bars }] } });
+  assert.equal(next!.prevClose, 104);
+  // synthetic fixture (format sample), not market data — 5d window without bars: no 1D basis
+  const bare = yahooChartSnapshot({ chart: { result: [{ meta: { ...meta, regularMarketTime: t0 } }] } });
+  assert.equal(bare!.change, null);
+});
+
 test("session estimates: US by NY clock, KRX/NXT by KST clock, weekends closed", () => {
   assert.equal(usSessionEstimate(Date.parse("2026-09-25T13:00:00Z")).session, "pre"); // 09:00 ET Fri
   assert.equal(usSessionEstimate(Date.parse("2026-09-25T14:00:00Z")).session, "regular");

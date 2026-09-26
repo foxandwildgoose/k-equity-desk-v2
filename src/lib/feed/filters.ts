@@ -5,6 +5,8 @@
 import { matchesSearchQuery } from "../search-match.ts";
 import { containsTerm } from "./importance.ts";
 import type { FeedItem } from "./types.ts";
+import { ETF_ISSUER_BRANDS, ETF_STAGE_LABEL, ETF_THEMES } from "../etf-news.ts";
+import { POLICY_STATUS_LABEL, ROBOT_TOPICS } from "../robotics/classify.ts";
 
 export interface FeedFilterState {
   /** Selected registry ids; empty = all. */
@@ -98,6 +100,12 @@ export const TOPIC_LABELS: Record<string, string> = {
   research: "리서치",
   statistics: "통계",
 };
+
+for (const [id, label] of Object.entries(ETF_STAGE_LABEL)) TOPIC_LABELS[`stage:${id}`] = label;
+for (const t of ETF_THEMES) TOPIC_LABELS[`theme:${t.id}`] = t.label;
+for (const b of ETF_ISSUER_BRANDS) TOPIC_LABELS[`brand:${b.brand}`] = b.brand;
+for (const t of ROBOT_TOPICS) TOPIC_LABELS[`robot:${t.id}`] = t.label;
+for (const [id, label] of Object.entries(POLICY_STATUS_LABEL)) TOPIC_LABELS[`status:${id}`] = label;
 
 export function topicLabel(id: string): string {
   return TOPIC_LABELS[id] ?? id;

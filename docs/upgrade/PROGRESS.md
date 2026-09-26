@@ -40,7 +40,7 @@ mappers accept several candidate field names and stay `unverified`.
 | P1 | done | kernel, registry, fetch policy, health, UI kit, store v2, D1–D5(name)/D7/D8 |
 | P2 | done | /api/feed, news adapters, /news/kr, /news/us, grouped sidebar, LiveNews paging, US MarketBar |
 | P3 | done | research v2 adapter + desk, detail sheet, Δ% rule, pre-resolve; US tiers, Street Moves + CSV, briefing |
-| P4 | pending | |
+| P4 | done | ETF news (/news/etf + /etfs tab), robotics section (6 tabs), Federal Register, cross-links |
 | P5 | pending | |
 | P6 | pending | |
 | P7 | pending | |
@@ -55,6 +55,11 @@ mappers accept several candidate field names and stay `unverified`.
 - Pure `src/lib/**` modules receive data that lives behind `@/` imports (e.g. `UNIVERSE`)
   as parameters, so tests run under `node --experimental-strip-types`.
 
+- ETF / robotics feeds reuse `/api/feed` with `group=etf|robotics-market|robotics-policy` (fixed registry source sets + server post-processing) instead of new endpoints; one cache, one budget, one health path.
+- Google News theme queries carry a recency window (`when:14d` ETF topics, `when:7d` issuer brands and robot market, `when:30d` robot policy) because GN search is relevance-ranked.
+- ETF issuer = brand prefix of the ETF name (KODEX → 삼성자산운용 …); the live list carries no issuer field.
+- Robotics KR/US basket 1D % = equal weight over resolved rows excluding `indirect` exposure names (stated on the tile).
+
 ## Deviations
 - Branch name (see Base).
 - FeedList "virtualization" uses native `content-visibility: auto` on rows above 200 (no new dependency).
@@ -68,6 +73,12 @@ mappers accept several candidate field names and stay `unverified`.
 - 관심종목 research filter covers the first 10 of watchlist ∪ former featured names (v2 accepts ≤ 10 itemCodes per call).
 - Research "페이지" links use finance.naver.com `*_read.naver?nid=` routes (existing app pattern; v2 page routes are undocumented).
 - Client re-scores importance with the viewer's watchlist/keywords (server score is watch-agnostic because `/api/feed` is CDN-cached).
+
+- F5.3 "상장 예정 in the next 14 days": headlines carry no machine-readable listing date, so the briefing shows listed/scheduled stories published in the last 14 days (labelled `최근 14일 보도`).
+- F6.5 US market cap shows `—`: the Yahoo chart response has no market cap and no other verified keyless source exists; KR market cap comes from the Naver quote.
+- F6.7 OFFICIAL filings for US robot tickers load on demand per symbol (reuses `CompanyOfficial`); PUBLIC_RESEARCH registry is empty so the PUBLIC column shows the registry note.
+- `robotics-universe` is a registry pseudo-source (no URL) whose health row lists unresolved names; it has no adapter, so `/status/sources` shows 「기존 모듈 경로」 and retry is disabled for it.
+- Yahoo 1D change basis fixed kernel-wide: `previousClose` → prior session close from daily bars → `chartPreviousClose` only when it is the prior session (the P2 5-day tiles would otherwise show a 5-day change).
 
 ## Blockers
 - Network egress denies every market-data host (not a credential issue). No paid service needed.
@@ -94,5 +105,13 @@ mappers accept several candidate field names and stay `unverified`.
 4. Robotics classifier (D5/F6.8) + `src/data/robotics.ts` universe data.
 5. Gates: typecheck 0 · tests 201 + 170 · ESLint changed 0 errors · build ok · qa:smoke 32/32 · qa:acceptance AT-15/16(+mobile, fallback)/18/19/20 pass.
 
+### P4 — ETF news + robotics (done)
+1. Pure modules: `src/lib/etf-news.ts` (stage/theme/brand, `isEtfStory`, longest-name `matchEtf`, `enrichEtfStory`, filters, `buildEtfBriefing`), `src/lib/robotics/classify.ts` (robot topics, policy status chips from keywords only, Federal Register relevance filter/mapper/URL, robot ETF discovery, exact-name resolution, basket stats) + tests (AT-22/24/26/27).
+2. Feed: registry `gn-etf-brands`, `gn-robot-policy-kr/en`, `robotics-universe`; adapters `adapters/themes.ts` (GN theme groups, Federal Register JSON); `/api/feed?group=` with ETF enrichment from the live ETF list and robot topic/status stamping; `FeedItem.etf`; theme chips + ETF match strip in `FeedRow`.
+3. `/news/etf` (+ `/etfs` 「ETF 뉴스」 tab): briefing digest (trading-value tiles, robot/AI ETF chips, listing/delisting/flow/retirement lists), issuer/stage/theme/retirement filters, newest first.
+4. `/robotics` (overview · market · policy · companies · research · etf): `src/server/robotics.ts` runtime universe verification (unresolved hidden + listed in Source Health), KPI tiles with sources, movers, latest 5s, company tables + news drawer + add/hide/restore, research (v2 industry robot filter + company ≤ 10 codes/call, Street moves, OFFICIAL on demand), KR regex ETFs + verified US ETFs. Cross-links: `/industry/robotics` card, sidebar sector row → `/robotics`, sidebar 테마 group + ETF 뉴스 item.
+5. Fixes: Yahoo 1D basis (prior session), `/industry/$sectorId` hydration race (mounted guard).
+6. Gates: typecheck 0 · tests 201 + 182 · ESLint changed 0 errors · build ok · qa:smoke 46/46 (23 routes × 2) · qa:acceptance AT-22/23/25/28 pass · verify:sources OFFLINE (64 blocked, 4 skipped).
+
 ## Next steps
-- P4: ETF news (`/news/etf` + ETF 뉴스 tab), robotics section (`/robotics` 6 tabs, Federal Register filter, policy chips, companies tables, ETF discovery), cross-links.
+- P5: Live Wire (`/api/wire`, leader election, drawer, toasts, OS notifications opt-in, rate limit + digest, quiet hours, `/settings/alerts`, SSE hardening).

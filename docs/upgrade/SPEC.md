@@ -78,21 +78,21 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [x] F4.7 (S) "US 리서치 브리핑" strip: tier counts today/week, top up/downgrades, day's filings, next macro releases
 
 ## F5 KR ETF News `/news/etf` + `/etfs` "ETF 뉴스" tab (P4)
-- [ ] F5.1 (M) extend `etf-news.ts` (keep stage logic): GN queries (8) + issuer brands (10); Hankyung finance filtered; naver news search `query=ETF` if verified
-- [ ] F5.2 (M) enrichment via `fetchAllEtfs` + longest-name `matchEtf`: code, price, 1D%, volume, market value, issuer, link `/etfs/$code`
-- [ ] F5.3 (M) briefing: 신규 상장 + 상장 예정 (14 d), 상장폐지 예정, fund-flow, 퇴직연금 제도, top trading-value snapshot, robot/AI ETF link chips
-- [ ] F5.4 (M) newest first; filters issuer, stage, theme, retirement-eligible only
+- [x] F5.1 (M) extend `etf-news.ts` (keep stage logic): GN queries (8) + issuer brands (10); Hankyung finance filtered; naver news search `query=ETF` if verified
+- [x] F5.2 (M) enrichment via `fetchAllEtfs` + longest-name `matchEtf`: code, price, 1D%, volume, market value, issuer, link `/etfs/$code`
+- [x] F5.3 (M) briefing: 신규 상장 + 상장 예정 (14 d), 상장폐지 예정, fund-flow, 퇴직연금 제도, top trading-value snapshot, robot/AI ETF link chips
+- [x] F5.4 (M) newest first; filters issuer, stage, theme, retirement-eligible only
 
 ## F6 Robotics `/robotics` tabs overview·market·policy·companies·research·etf (P4)
-- [ ] F6.1 (M) `src/data/robotics.ts`: KR seed (6 codes, runtime-verified), KR candidates resolved by name via security search, exposure names (indirect), US seed (15, Yahoo-verified), private cos (news only); tags segment + exposure; user add/remove persisted
-- [ ] F6.2 (M) overview: KPI tiles (KR/US basket EW 1D%, policy 7d, research 7d, news 24h), top movers KR/US, latest 5 market/5 policy/5 research, robot ETF snapshot; sources + newest first
-- [ ] F6.3 (M) market trends: Robot Report, 로봇신문, IEEE Spectrum (if verified), GN KR ×4, GN EN ×4; robot topic classifier
-- [ ] F6.4 (M) policy: Federal Register (terms, order=newest, relevance filter title/abstract, drop premerger/early-termination, show type+agencies), GN EN ×3; KR GN ×5 + 로봇신문 policy; status chips only from source keywords
-- [ ] F6.5 (M) companies: KR table (name, code, segment, exposure, price, 1D%, 52w pos, mcap, latest news time, latest research date → /stock), US table (Yahoo → /us), row → news drawer newest first
-- [ ] F6.6 (M) ETF: KR via name regex from live list (code, name, price, 1D%, volume, mcap → /etfs), US seed BOTZ/ROBO/ARKQ/KOID/HUMN/BOTT verified
-- [ ] F6.7 (M) research: KR v2 industry (robot kw) + v2 company for robot tickers (≤10 itemCodes/call) + Hankyung if verified; US PUBLIC_RESEARCH robotics, Street Moves, OFFICIAL filings; extractive, 원문, newest first
+- [x] F6.1 (M) `src/data/robotics.ts`: KR seed (6 codes, runtime-verified), KR candidates resolved by name via security search, exposure names (indirect), US seed (15, Yahoo-verified), private cos (news only); tags segment + exposure; user add/remove persisted
+- [x] F6.2 (M) overview: KPI tiles (KR/US basket EW 1D%, policy 7d, research 7d, news 24h), top movers KR/US, latest 5 market/5 policy/5 research, robot ETF snapshot; sources + newest first
+- [x] F6.3 (M) market trends: Robot Report, 로봇신문, IEEE Spectrum (if verified), GN KR ×4, GN EN ×4; robot topic classifier
+- [x] F6.4 (M) policy: Federal Register (terms, order=newest, relevance filter title/abstract, drop premerger/early-termination, show type+agencies), GN EN ×3; KR GN ×5 + 로봇신문 policy; status chips only from source keywords
+- [~] F6.5 (M) companies: KR table (name, code, segment, exposure, price, 1D%, 52w pos, mcap, latest news time, latest research date → /stock), US table (Yahoo → /us), row → news drawer newest first — US market cap `—` (not in the Yahoo chart response; stated in UI)
+- [x] F6.6 (M) ETF: KR via name regex from live list (code, name, price, 1D%, volume, mcap → /etfs), US seed BOTZ/ROBO/ARKQ/KOID/HUMN/BOTT verified
+- [~] F6.7 (M) research: KR v2 industry (robot kw) + v2 company for robot tickers (≤10 itemCodes/call) + Hankyung if verified; US PUBLIC_RESEARCH robotics, Street Moves, OFFICIAL filings; extractive, 원문, newest first — Hankyung robotics not separately verified (hankyung-it feeds the market tab via keyword filter); PUBLIC_RESEARCH empty (registry note shown); OFFICIAL on demand per symbol
 - [x] F6.8 (M) taxonomy keywords list; bare AI/인공지능 only with robot term; tests updated
-- [ ] F6.9 (M) `/industry/robotics` → `/robotics` link; sidebar sector row links `/robotics`; dashboard card (P7)
+- [~] F6.9 (M) `/industry/robotics` → `/robotics` link; sidebar sector row links `/robotics`; dashboard card (P7) — links done in P4, card pending P7
 
 ## F7 Pro charts (P6)
 - [ ] F7.1 (M) `createProChart`/`useProChart` in `src/components/charts/core/`; CSS-var theme, `usePriceColors`; `formatters.ts` (KRW p0/minMove1/separators; USD 2dp, 4 < $1; %, volume 만/억 KR, K/M/B US); `krxTickSize(price, instrument)` w/ tests (verified table; ETF/ETN separate)
@@ -146,7 +146,7 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - Foundations: AT-01 mixed dates newest-first + seq tie · AT-02 date-only no time, unknown sinks `날짜 미상` · AT-03 RSS/Atom/EUC-KR identical normalized · AT-04 cluster `[속보] 코스피 2% 급락` ≈ `코스피, 2% 급락 마감 - 한국경제`; high+ has ≥1 reason · AT-05 fetch policy rejects non-allowlisted/non-https; 429 opens circuit · AT-06 KRW integer w/ separators, USD 2dp · AT-07 attribution link on every chart page · AT-08 unversioned store migration keeps watchlist/theme/colorConvention
 - News: AT-09 `/news/kr` digest + list newest-first, sources, `rel="noopener noreferrer"` · AT-10 filters + 더 보기 no duplicates · AT-11 ticker chips → `/stock/$ticker`, no "LG" inside "LG에너지솔루션" · AT-12 `/news/us` tiles w/ delay labels + KST/ET; Bloomberg `유료` headline+link only · AT-13 Bloomberg off (env or toggle) removes it everywhere · AT-14 `/api/feed` Cache-Control s-maxage, ≤ 8 s w/ `partial`
 - Research: AT-15 KR tabs newest-first, date headers, totalCount, 더 보기 · AT-16 `PDF 원문` popup-safe (Playwright popup, mobile too) · AT-17 TP strip up/down; Δ% only both sourced · AT-18 7-stock list gone; company tab paginates · AT-19 US notes/headlines/official newest-first; banner; original links · AT-20 Street Moves date-desc; CSV = visible rows · AT-21 "AI 반도체" not robotics
-- ETF/Robotics: AT-22 ETF matches show code/price/volume → `/etfs/$code`; stage chips on fixtures · AT-23 robotics overview tiles w/ sources, empty w/ reason · AT-24 robot ETF regex matcher fixture · AT-25 unresolved symbols hidden + listed in health · AT-26 Federal Register filter drops premerger/early-termination; keeps robotics/Section 232 · AT-27 policy chips only on keyword presence · AT-28 `/industry/robotics` → `/robotics`; CLOBOT
+- ETF/Robotics: AT-22 ETF matches show code/price/volume → `/etfs/$code`; stage chips on fixtures · AT-23 robotics overview tiles w/ sources, empty w/ reason · AT-24 robot ETF regex matcher fixture · AT-25 unresolved symbols hidden + listed in health · AT-26 Federal Register filter drops premerger/early-termination; keeps robotics/Section 232 · AT-27 policy chips only on keyword presence · AT-28 `/industry/robotics` → `/robotics`; CLOBOT — P4: AT-22/23/25/28 pass in `qa:acceptance` (mocked fixtures in the harness only); AT-24/26/27 unit tests (`src/lib/robotics/robotics.test.ts`, `src/lib/etf-news.test.ts`)
 - Live Wire: AT-29 single leader polls · AT-30 no permission prompt on load · AT-31 12 items/10 min → ≤5 + 1 digest · AT-32 quiet hours suppress OS, badge still updates · AT-33 price alert fires once on cross · AT-34 SSE closes by 240 s, client reconnects
 - Charts: AT-35 indicator known values · AT-36 drawings CRUD/lock/hide/undo/redo/persist · AT-37 compare % from first visible bar · AT-38 2×2 crosshair sync · AT-39 key format + migration · AT-40 replay hides future, no lookahead · AT-41 PNG/CSV names w/ symbol + timestamp · AT-42 mobile toolbar sheet, no h-scroll · AT-43 Tier B HUD/fullscreen/export/status; tests pass · AT-44 no chart without source/as-of
 - Final: AT-45 RISK_DISCLAIMER + per-item sources on new pages · AT-46 AI UI absent when unset; uncited bullets rejected · AT-47 existing routes render; KIS/ETF holdings/export desk/disclosures unchanged except fixes · AT-48 Vercel rules (no FS writes, no fn > 10 s normal)

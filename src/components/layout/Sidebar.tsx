@@ -19,6 +19,8 @@ import {
   Globe2,
   LineChart,
   Activity,
+  Bot,
+  PieChart,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
@@ -41,6 +43,7 @@ export const NAV_GROUPS: { id: string; label: string; items: NavItem[] }[] = [
       { to: "/news/kr", label: "한국 뉴스", icon: Newspaper },
       { to: "/research", label: "리서치 데스크", icon: Library, search: { market: "kr" } },
       { to: "/etfs", label: "퇴직연금 ETF", icon: Layers, tone: "text-desk-gold" },
+      { to: "/news/etf", label: "ETF 뉴스", icon: PieChart },
       { to: "/disclosures", label: "주요 공시", icon: FileText },
       { to: "/export-desk", label: "수출 × KOSPI", icon: Ship, tone: "text-desk-gold" },
     ],
@@ -54,6 +57,11 @@ export const NAV_GROUPS: { id: string; label: string; items: NavItem[] }[] = [
       { to: "/us-research", label: "공식 원문", icon: Landmark, tone: "text-desk-gold" },
       { to: "/us-link", label: "미국 연계", icon: Flag, tone: "text-desk-teal" },
     ],
+  },
+  {
+    id: "themes",
+    label: "테마",
+    items: [{ to: "/robotics", label: "로봇", icon: Bot, tone: "text-desk-teal" }],
   },
   {
     id: "tools",
@@ -172,8 +180,10 @@ export function Sidebar({
         <div className="space-y-0.5">
           {sectors.map((s) => {
             const stats = sectorStatsFromQuotes(s.id, quotes);
-            const to = `/industry/${s.id}`;
-            const active = pathname === to || pathname.startsWith(`${to}/`);
+            // F6.9: the robotics sector row opens the robotics section.
+            const robotics = s.id === "robotics";
+            const to = robotics ? "/robotics" : `/industry/${s.id}`;
+            const active = pathname === to || pathname.startsWith(`${to}/`) || (robotics && pathname.startsWith("/industry/robotics"));
             const up = stats.avgChangePct > 0;
             const color =
               !stats.count || stats.avgChangePct === 0
@@ -181,18 +191,13 @@ export function Sidebar({
                 : up
                   ? colors.up
                   : colors.down;
-            return (
-              <Link
-                key={s.id}
-                to="/industry/$sectorId"
-                params={{ sectorId: s.id }}
-                onClick={onNavigate}
-                className={cn(
-                  "nav-item justify-between",
-                  active ? "nav-item-active" : "nav-item-idle",
-                  s.id === "us-linked" && !active && "ring-1 ring-desk-gold/35",
-                )}
-              >
+            const cls = cn(
+              "nav-item justify-between",
+              active ? "nav-item-active" : "nav-item-idle",
+              s.id === "us-linked" && !active && "ring-1 ring-desk-gold/35",
+            );
+            const body = (
+              <>
                 <span className="truncate text-[13px]">
                   {s.id === "us-linked" ? (
                     <span className="text-desk-gold mr-1">★</span>
@@ -202,6 +207,15 @@ export function Sidebar({
                 <span className={cn("text-[11px] tabular shrink-0 font-medium font-mono", color)}>
                   {stats.count ? formatPct(stats.avgChangePct) : "—"}
                 </span>
+              </>
+            );
+            return robotics ? (
+              <Link key={s.id} to="/robotics" onClick={onNavigate} className={cls} data-sector-link="robotics">
+                {body}
+              </Link>
+            ) : (
+              <Link key={s.id} to="/industry/$sectorId" params={{ sectorId: s.id }} onClick={onNavigate} className={cls}>
+                {body}
               </Link>
             );
           })}
