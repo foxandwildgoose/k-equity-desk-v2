@@ -12,6 +12,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useAppStore } from "@/lib/store";
+import { Toaster } from "sonner";
+import {
+  CHART_ATTRIBUTION_LABEL,
+  CHART_ATTRIBUTION_URL,
+  LIGHTWEIGHT_CHARTS_NOTICE,
+} from "@/components/charts/core/attribution";
 import {
   Tooltip,
   TooltipContent,
@@ -136,9 +142,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 있을 수 있습니다. 투자 결정과 손실 책임은 이용자 본인에게 있습니다.
                 실주문 전 증권사 HTS/MTS에서 호가·잔량·VI·공시를 재확인하세요.
               </p>
+              <p className="mx-auto mt-1.5 max-w-[1440px] text-[11px] leading-relaxed text-muted-foreground">
+                <a
+                  href={CHART_ATTRIBUTION_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-foreground/80 underline-offset-2 hover:underline"
+                  data-testid="chart-attribution"
+                  title={LIGHTWEIGHT_CHARTS_NOTICE}
+                >
+                  {CHART_ATTRIBUTION_LABEL}
+                </a>
+                <span className="whitespace-pre-line"> · {LIGHTWEIGHT_CHARTS_NOTICE.replace("\n", " · ")}</span>
+                <span> · </span>
+                <Link to="/status/sources" className="underline-offset-2 hover:underline">
+                  소스 상태
+                </Link>
+              </p>
             </footer>
           </main>
         </div>
+
+        <Toaster
+          theme={theme}
+          position="bottom-right"
+          closeButton
+          toastOptions={{ className: "text-sm" }}
+        />
 
         {/* Mobile sidebar */}
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>

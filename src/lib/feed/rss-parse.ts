@@ -140,7 +140,7 @@ export function parseFeed(xml: string): FeedEntry[] {
   if (!xml || typeof xml !== "string") return [];
   let doc: Record<string, unknown>;
   try {
-    doc = obj(parser.parse(xml.replace(/^﻿/, "")));
+    doc = obj(parser.parse(xml.replace(/^\uFEFF/, "")));
   } catch {
     return [];
   }
@@ -192,8 +192,8 @@ export function decodeFeedBytes(bytes: Uint8Array, contentType?: string | null):
   const head = new TextDecoder("latin1").decode(bytes.subarray(0, 2048));
   const label = charsetFromContentType(contentType) ?? charsetFromMarkup(head) ?? "utf-8";
   try {
-    return new TextDecoder(label).decode(bytes).replace(/^﻿/, "");
+    return new TextDecoder(label).decode(bytes).replace(/^\uFEFF/, "");
   } catch {
-    return new TextDecoder("utf-8").decode(bytes).replace(/^﻿/, "");
+    return new TextDecoder("utf-8").decode(bytes).replace(/^\uFEFF/, "");
   }
 }

@@ -37,7 +37,7 @@ mappers accept several candidate field names and stay `unverified`.
 | Phase | Status | Notes |
 |---|---|---|
 | P0 | done | docs, registry, probe, baseline |
-| P1 | pending | |
+| P1 | done | kernel, registry, fetch policy, health, UI kit, store v2, D1–D5(name)/D7/D8 |
 | P2 | pending | |
 | P3 | pending | |
 | P4 | pending | |
@@ -57,9 +57,22 @@ mappers accept several candidate field names and stay `unverified`.
 
 ## Deviations
 - Branch name (see Base).
+- FeedList "virtualization" uses native `content-visibility: auto` on rows above 200 (no new dependency).
+- `retrySource` is a POST server function (mutation semantics); everything else is GET.
+- Extra optional env `FEED_SOURCES_DISABLED` (comma list of registry ids) as a server-side kill switch alongside the registry `enabled` flag.
+- Source health is in-memory per server instance (serverless instances keep separate views; stated on the page).
+- KRX tick table (unified 2023 stock table, ETF/ETN flat 5 KRW) could not be re-verified offline; used only for drawing snap.
 
 ## Blockers
 - Network egress denies every market-data host (not a credential issue). No paid service needed.
 
+## Phase log
+### P1 — foundations (done)
+1. Kernel: `src/lib/feed/{types,time,sort,text,rss-parse,cluster,importance,tickers,filters,briefing,mappers}.ts` + tests (AT-01..05).
+2. Server: `src/server/feeds/{registry,http,health,runner}.ts`, `src/lib/feed-fns.ts`, `/status/sources` page with toggles + 지금 재시도.
+3. Store v2 (`store-migrate.ts`, AT-08), chart formatters + KRX tick (AT-06), attribution footer (AT-07), popup-safe opener (D2).
+4. D1 call sites moved onto the kernel (research, disclosures, us-street, us-link, official); fabricated `00:00`/"now" timestamps removed.
+5. Gates: typecheck 0 · tests 201 + 150 pass · ESLint changed files 0 errors · build ok · qa:smoke ok (dashboard hydration race fixed).
+
 ## Next steps
-- P1: kernel tests, http policy, health, UI kit, store v2, D1–D8.
+- P2: news adapters (naver news/focus/world, RSS, Google News, disclosures, KIS, Yahoo snapshot, Finviz ratings), `/api/feed`, `/news/kr`, `/news/us`, grouped sidebar, LiveNews paging.

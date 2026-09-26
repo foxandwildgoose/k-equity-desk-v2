@@ -19,7 +19,7 @@ export function stripHtml(input: unknown): string {
   const twice = /&[a-z#0-9]+;/i.test(once) ? decodeHtmlEntities(once) : once;
   return twice
     .replace(/<[^>]*>/g, " ")
-    .replace(/[ ​﻿]/g, " ")
+    .replace(/[\u00a0\u200b\uFEFF]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -36,6 +36,7 @@ import {
   type EtfAssetClass,
 } from "@/server/etf-market";
 import { UNIVERSE } from "@/data/universe";
+import { sortDisclosuresNewestFirst } from "@/lib/feed/mappers";
 import { inferSectorId, detectKrMarket, normalizeKrTicker, isKrTicker } from "@/lib/infer-sector";
 import { US_LINKED_CODES, US_POLICY_BRIEFS } from "@/data/us-link";
 import { fetchUsLinkLiveFeeds } from "@/server/us-link-feed";
@@ -409,9 +410,7 @@ export const getMarketIndices = createServerFn({ method: "GET" }).handler(
 export const getScanDisclosures = createServerFn({ method: "GET" }).handler(
   async () => {
     const desk = await fetchKrxDisclosureDesk();
-    const merged = [...desk.koscom, ...desk.dart]
-      .sort((a, b) => (a.datetime < b.datetime ? 1 : -1))
-      .slice(0, 100);
+    const merged = sortDisclosuresNewestFirst([...desk.koscom, ...desk.dart]).slice(0, 100);
     return merged.map((d) => ({
       id: d.id,
       title: d.title,

@@ -1,4 +1,5 @@
 import type { ResearchReport } from "@/server/naver-market";
+import { latestPerBrokerByKernel } from "./feed/mappers.ts";
 
 const DECISION_TERMS = [
   "목표주가", "투자의견", "매수", "중립", "매도", "실적", "영업이익", "매출",
@@ -49,13 +50,9 @@ export function reportHasInvestmentView(report: ResearchReport): boolean {
   return Boolean(report.rating || (report.targetPrice != null && report.targetPrice > 0));
 }
 
+/** Latest report per broker, newest first via the shared kernel (D1a). */
 export function latestReportPerBroker(reports: ResearchReport[]): ResearchReport[] {
-  const sorted = [...reports].sort((a, b) => b.date.localeCompare(a.date));
-  const byBroker = new Map<string, ResearchReport>();
-  for (const report of sorted) {
-    if (!byBroker.has(report.broker)) byBroker.set(report.broker, report);
-  }
-  return [...byBroker.values()];
+  return latestPerBrokerByKernel(reports);
 }
 
 export function median(values: number[]): number | null {

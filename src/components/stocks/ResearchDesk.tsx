@@ -4,14 +4,12 @@ import type { ResearchReport, ResearchCategory } from "@/server/naver-market";
 import type { SectorId } from "@/data/types";
 import { RESEARCH_SECTOR_RULES } from "@/data/research-taxonomy";
 import { useIndustryResearch } from "@/lib/use-market";
-import {
-  fetchResearchDeepDetail,
-  mergeResearchDeep,
-  openResearchPdfUrl,
-} from "@/lib/research-deep";
+import { fetchResearchDeepDetail, mergeResearchDeep } from "@/lib/research-deep";
+import { openOriginal } from "@/components/feed/original-link";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { matchesSearchQuery } from "@/lib/search-match";
+import { reportDay, sortReportsNewestFirst } from "@/lib/feed/mappers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,11 +55,10 @@ function listFor(pack: DeskPack, tab: DeskTab): ResearchReport[] {
 
 function withinRange(dateText: string, range: RangeKey) {
   if (range === "all") return true;
-  const normalized = dateText.replace(/\./g, "-");
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) return true;
+  const day = reportDay({ date: dateText });
+  if (!day) return true;
   const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
-  return Date.now() - date.getTime() <= days * 86_400_000;
+  return Date.now() - Date.parse(`${day}T12:00:00Z`) <= days * 86_400_000;
 }
 
 export function ResearchDeskPanel({
@@ -128,7 +125,7 @@ export function ResearchDeskPanel({
   const list = useMemo(() => {
     const q = query.trim();
     const targeted = tab === "industry" && sector !== "all" && (extraQ.data?.reports?.length ?? 0) > 0;
-    const filtered = listFor(viewPack, tab)
+    const filtered = sortReportsNewestFirst(listFor(viewPack, tab))
       .filter((r) => tab !== "industry" || sector === "all" || targeted || r.sectorIds.includes(sector))
       .filter((r) => broker === "all" || r.broker === broker)
       .filter((r) => withinRange(r.date, range))
@@ -144,8 +141,7 @@ export function ResearchDeskPanel({
           r.categoryLabel,
           r.sourceLabel,
         ]),
-      )
-      .sort((a, b) => b.date.localeCompare(a.date));
+      );
     return compact ? filtered.slice(0, 5) : filtered.slice(0, 80);
   }, [viewPack, tab, sector, broker, range, query, compact, extraQ.data?.reports]);
 
@@ -167,24 +163,21 @@ export function ResearchDeskPanel({
     }
   }
 
-  async function openPdf(report: ResearchReport) {
-    if (report.sourceKind === "hankyung" && (report.pdfUrl || report.pageUrl)) {
-      openResearchPdfUrl(report.pdfUrl || report.pageUrl);
-      return;
-    }
-    setPdfLoading(true);
-    try {
-      const deep = await fetchResearchDeepDetail(report);
-      const merged = mergeResearchDeep(report, deep);
-      setActive((prev) =>
-        prev && prev.researchId === report.researchId ? merged : prev,
-      );
-      openResearchPdfUrl(merged.pdfUrl || merged.pageUrl);
-    } catch {
-      openResearchPdfUrl(report.pdfUrl || report.pageUrl);
-    } finally {
-      setPdfLoading(false);
-    }
+  // D2: synchronous in the click handler — opens about:blank first, then navigates.
+  function openPdf(report: ResearchReport) {
+    const known =
+      report.sourceKind === "hankyung" ? report.pdfUrl || report.pageUrl : report.pdfUrl && /\.pdf($|\?)/i.test(report.pdfUrl) ? report.pdfUrl : null;
+    setPdfLoading(!known);
+    void openOriginal({
+      knownUrl: known,
+      fallbackUrl: report.pageUrl || "https://finance.naver.com/research/",
+      resolve: async () => {
+        const deep = await fetchResearchDeepDetail(report);
+        const merged = mergeResearchDeep(report, deep);
+        setActive((prev) => (prev && prev.researchId === report.researchId ? merged : prev));
+        return merged.pdfUrl || merged.pageUrl;
+      },
+    }).finally(() => setPdfLoading(false));
   }
 
   const tabMeta = TABS.find((t) => t.id === tab);
@@ -285,14 +278,14 @@ export function ResearchDeskPanel({
               <button
                 type="button"
                 className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline min-h-8"
-                onClick={() => void openPdf(r)}
+                onClick={() => openPdf(r)}
               >
                 원문 보기 <ExternalLink className="size-3" />
               </button>
               <button
                 type="button"
                 className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground min-h-8"
-                onClick={() => void openPdf(r)}
+                onClick={() => openPdf(r)}
               >
                 PDF 열기
               </button>
@@ -330,7 +323,7 @@ export function ResearchDeskPanel({
             </SheetHeader>
             <div className="space-y-4 px-4 py-4">
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" disabled={pdfLoading || deepLoading} onClick={() => void openPdf(active)} className="gap-1.5">
+                <Button size="sm" disabled={pdfLoading || deepLoading} onClick={() => openPdf(active)} className="gap-1.5">
                   {pdfLoading ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />} PDF / 원문
                 </Button>
                 <Button asChild size="sm" variant="outline">

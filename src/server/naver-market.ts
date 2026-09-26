@@ -9,6 +9,7 @@ import { detectKrMarket, normalizeKrTicker, isKrTicker, inferSectorId } from "@/
 import { yahooUsSymbol } from "@/lib/valuation-series";
 import { classifyResearchSectors } from "@/data/research-taxonomy";
 import { buildResearchExecutiveSummary } from "@/lib/research-utils";
+import { sortReportsNewestFirst } from "@/lib/feed/mappers";
 
 const UA =
   "Mozilla/5.0 (compatible; KoreaEquityCommand/1.0; +https://x.ai) AppleWebKit/537.36";
@@ -578,7 +579,7 @@ function bucketMinuteBars(
   }
   const grouped: typeof raw = [];
   for (const [key, chunk] of [...buckets.entries()].sort(([a], [b]) =>
-    a.localeCompare(b),
+    a.localeCompare(b), // ked-allow-string-date-sort: single-format time series
   )) {
     const first = chunk[0]!;
     const last = chunk[chunk.length - 1]!;
@@ -888,7 +889,7 @@ async function fetchUsOhlc(opts: {
       byYear.set(y, list);
     }
     const yearly: typeof raw = [];
-    for (const [y, list] of [...byYear.entries()].sort()) {
+    for (const [y, list] of [...byYear.entries()].sort()) { // ked-allow-string-date-sort: single-format time series
       const first = list[0]!;
       const last = list[list.length - 1]!;
       yearly.push({
@@ -1025,7 +1026,7 @@ export async function fetchOhlc(opts: {
       byYear.set(y, list);
     }
     const yearly: typeof raw = [];
-    for (const [y, list] of [...byYear.entries()].sort()) {
+    for (const [y, list] of [...byYear.entries()].sort()) { // ked-allow-string-date-sort: single-format time series
       const first = list[0]!;
       const last = list[list.length - 1]!;
       yearly.push({
@@ -1181,7 +1182,7 @@ export async function fetchInvestorFlow(
       };
     })
     .filter((d): d is NonNullable<typeof d> => d != null)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => a.date.localeCompare(b.date)); // ked-allow-string-date-sort: single-format time series
 
   return { days, source };
 }
@@ -1339,8 +1340,8 @@ async function enrichReports(
     head.map(async (r) => {
       const api = await enrichFromApiDetail(r.researchId, r.category);
       let rating = r.rating ?? api.rating;
-      let targetPrice = r.targetPrice ?? api.targetPrice;
-      let pdfUrl = r.pdfUrl ?? api.pdfUrl;
+      const targetPrice = r.targetPrice ?? api.targetPrice;
+      const pdfUrl = r.pdfUrl ?? api.pdfUrl;
       let preview = r.preview;
 
       if (api.previewExtra && (!preview || preview.length < api.previewExtra.length)) {
@@ -1404,7 +1405,7 @@ export async function fetchCategoryResearch(
         for (const e of extra) {
           if (!seen.has(e.researchId)) list.push(e);
         }
-        list = list.sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, limit);
+        list = sortReportsNewestFirst(list).slice(0, limit);
       } catch {
         /* optional */
       }
@@ -1469,8 +1470,7 @@ export async function fetchResearchDesk(): Promise<{
 
   const featuredRaw = featuredLists.flat();
   const featured = await enrichReports(
-    featuredRaw
-      .sort((a, b) => (a.date < b.date ? 1 : -1))
+    sortReportsNewestFirst(featuredRaw)
       .filter(
         (r, i, arr) =>
           arr.findIndex((x) => x.researchId === r.researchId) === i,

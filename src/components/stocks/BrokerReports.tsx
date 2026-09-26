@@ -1,12 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { ResearchReport, ResearchCategory } from "@/server/naver-market";
-import {
-  fetchResearchDeepDetail,
-  mergeResearchDeep,
-  openResearchPdfUrl,
-} from "@/lib/research-deep";
+import { fetchResearchDeepDetail, mergeResearchDeep } from "@/lib/research-deep";
+import { openOriginal } from "@/components/feed/original-link";
 import { latestReportPerBroker, median, reportHasInvestmentView } from "@/lib/research-utils";
+import { reportDay, sortReportsNewestFirst } from "@/lib/feed/mappers";
 
 const CONSENSUS_MAX_AGE_DAYS = 180;
 import { formatPrice } from "@/lib/format";
@@ -51,7 +49,7 @@ function RatingBadge({ rating }: { rating?: string }) {
 
 function reportList(pack: Pack, tab: ResearchCategory) {
   const raw = pack[tab];
-  const sorted = [...raw].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = sortReportsNewestFirst(raw);
   // Company view is intentionally signal-only. Unrated notes no longer dilute the decision panel.
   return tab === "company" ? sorted.filter(reportHasInvestmentView) : sorted;
 }
@@ -82,7 +80,10 @@ export function BrokerReports({
     const cutoffStr = cutoff.toISOString().slice(0, 10);
 
     const latestAll = latestReportPerBroker(data.company);
-    const latest = latestAll.filter((r) => !r.date || r.date >= cutoffStr);
+    const latest = latestAll.filter((r) => {
+      const day = reportDay(r);
+      return !day || day >= cutoffStr;
+    });
     const staleDropped = latestAll.length - latest.length;
     const views = latest.filter(reportHasInvestmentView);
     const rated = views.filter((r) => r.rating);
@@ -103,7 +104,7 @@ export function BrokerReports({
       ? Math.round(targets.reduce((sum, x) => sum + x, 0) / targets.length)
       : null;
     const upside = med && currentPrice > 0 ? ((med / currentPrice) - 1) * 100 : null;
-    const asOf = views.map((r) => r.date).sort().at(-1) ?? null;
+    const asOf = sortReportsNewestFirst(views)[0]?.date ?? null;
 
     return {
       brokerCount: latest.length,
@@ -116,7 +117,7 @@ export function BrokerReports({
       low: targets[0] ?? null,
       high: targets[targets.length - 1] ?? null,
       upside,
-      rows: views.sort((a, b) => b.date.localeCompare(a.date)),
+      rows: sortReportsNewestFirst(views),
       staleDropped,
       maxAgeDays: CONSENSUS_MAX_AGE_DAYS,
       asOf,
@@ -140,21 +141,21 @@ export function BrokerReports({
     }
   }
 
-  async function openPdf(report: ResearchReport) {
-    setPdfLoading(true);
-    try {
-      // Always deep-resolve so missing list-level PDF/TP get filled
-      const deep = await fetchResearchDeepDetail(report);
-      const merged = mergeResearchDeep(report, deep);
-      setActive((prev) =>
-        prev && prev.researchId === report.researchId ? merged : prev,
-      );
-      openResearchPdfUrl(merged.pdfUrl || merged.pageUrl);
-    } catch {
-      openResearchPdfUrl(report.pdfUrl || report.pageUrl);
-    } finally {
-      setPdfLoading(false);
-    }
+  // D2: synchronous in the click handler — opens about:blank first, then navigates.
+  function openPdf(report: ResearchReport) {
+    const known = report.pdfUrl && /\.pdf($|\?)/i.test(report.pdfUrl) ? report.pdfUrl : null;
+    setPdfLoading(!known);
+    void openOriginal({
+      knownUrl: known,
+      fallbackUrl: report.pageUrl || "https://finance.naver.com/research/",
+      resolve: async () => {
+        // Deep-resolve so missing list-level PDF/TP get filled
+        const deep = await fetchResearchDeepDetail(report);
+        const merged = mergeResearchDeep(report, deep);
+        setActive((prev) => (prev && prev.researchId === report.researchId ? merged : prev));
+        return merged.pdfUrl || merged.pageUrl;
+      },
+    }).finally(() => setPdfLoading(false));
   }
 
   return (
@@ -258,7 +259,7 @@ export function BrokerReports({
             </SheetHeader>
             <div className="space-y-4 px-4 py-4">
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" className="gap-1.5" disabled={pdfLoading || deepLoading} onClick={() => void openPdf(active)}>{pdfLoading ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />} PDF / 원문</Button>
+                <Button size="sm" className="gap-1.5" disabled={pdfLoading || deepLoading} onClick={() => openPdf(active)}>{pdfLoading ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />} PDF / 원문</Button>
                 {active.pageUrl && (
                   <Button asChild size="sm" variant="outline">
                     <a href={active.pageUrl} target="_blank" rel="noopener noreferrer">리서치 페이지 원문</a>

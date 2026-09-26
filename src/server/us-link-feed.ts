@@ -6,6 +6,9 @@
  */
 import { fetchResearchDesk, fetchNews, type ResearchReport, type NewsItem } from "@/server/naver-market";
 import { US_LINKED_CODES, US_LINKED_NAMES } from "@/data/us-link";
+import { sortTimedNewestFirst } from "@/lib/feed/mappers";
+import { parseSourceTime } from "@/lib/feed/time";
+import { decodeHtmlEntities } from "@/lib/readable-text";
 
 export type UsFeedCategory = "ai-race" | "policy" | "industry";
 
@@ -34,15 +37,7 @@ function hashStr(s: string): number {
 }
 
 function decodeXml(s: string): string {
-  return s
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/"/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .trim();
+  return decodeHtmlEntities(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")).trim();
 }
 
 function stripTags(s: string): string {
@@ -98,12 +93,7 @@ export async function fetchGoogleNewsRss(
     if (!title || !link) continue;
     // skip channel title echoes
     if (title.includes("Google 뉴스") || title.includes("Google News")) continue;
-    let iso = pub;
-    try {
-      iso = new Date(pub).toISOString();
-    } catch {
-      /* keep */
-    }
+    const iso = parseSourceTime(pub, { zone: "UTC" }).iso ?? "";
     items.push({
       id: `gn-${Math.abs(hashStr(link + title)).toString(36)}`,
       title,
@@ -248,9 +238,7 @@ async function fetchCategoryNews(
     seen.add(key);
     out.push(row);
   }
-  return out
-    .sort((a, b) => (a.datetime < b.datetime ? 1 : -1))
-    .slice(0, 28);
+  return sortTimedNewestFirst(out, "UTC").slice(0, 28);
 }
 
 function researchToArticle(
@@ -264,7 +252,8 @@ function researchToArticle(
     title: r.title,
     url: r.pdfUrl || r.pageUrl || "https://finance.naver.com/research/",
     source: r.broker || "증권사 리서치",
-    datetime: r.date ? `${r.date}T00:00:00+09:00` : new Date().toISOString(),
+    // Date-only report date (never a fake 00:00 or "now").
+    datetime: parseSourceTime(r.date, { zone: "Asia/Seoul" }).iso?.slice(0, 10) ?? "",
     query: "broker-research",
     kind: "report",
     summary: r.summary || r.preview,
@@ -283,7 +272,8 @@ export const US_OFFICIAL_SOURCES: UsLiveArticle[] = [
     title: "U.S. BIS — Export Administration (반도체·AI 관련 통제 공지)",
     url: "https://www.bis.doc.gov/",
     source: "U.S. Department of Commerce / BIS",
-    datetime: new Date().toISOString(),
+    // Evergreen official hub link — no publication time exists.
+    datetime: "",
     query: "official",
     kind: "official",
     deskNote:
@@ -296,7 +286,8 @@ export const US_OFFICIAL_SOURCES: UsLiveArticle[] = [
     title: "CHIPS.gov — 미국 반도체 보조금·가드레일",
     url: "https://www.nist.gov/chips",
     source: "U.S. NIST / CHIPS Program",
-    datetime: new Date().toISOString(),
+    // Evergreen official hub link — no publication time exists.
+    datetime: "",
     query: "official",
     kind: "official",
     deskNote:
@@ -309,7 +300,8 @@ export const US_OFFICIAL_SOURCES: UsLiveArticle[] = [
     title: "IRS — IRA Clean Vehicle / 제조 세액공제 안내",
     url: "https://www.irs.gov/credits-deductions/credits-for-new-clean-vehicles-purchased-in-2023-or-after",
     source: "U.S. IRS",
-    datetime: new Date().toISOString(),
+    // Evergreen official hub link — no publication time exists.
+    datetime: "",
     query: "official",
     kind: "official",
     deskNote:
@@ -322,7 +314,8 @@ export const US_OFFICIAL_SOURCES: UsLiveArticle[] = [
     title: "Federal Reserve — FOMC 성명·경제전망 (SEP)",
     url: "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
     source: "U.S. Federal Reserve",
-    datetime: new Date().toISOString(),
+    // Evergreen official hub link — no publication time exists.
+    datetime: "",
     query: "official",
     kind: "official",
     deskNote:
@@ -335,7 +328,8 @@ export const US_OFFICIAL_SOURCES: UsLiveArticle[] = [
     title: "U.S. DOE — 원전·그리드·에너지 인프라",
     url: "https://www.energy.gov/",
     source: "U.S. Department of Energy",
-    datetime: new Date().toISOString(),
+    // Evergreen official hub link — no publication time exists.
+    datetime: "",
     query: "official",
     kind: "official",
     deskNote:
@@ -348,7 +342,8 @@ export const US_OFFICIAL_SOURCES: UsLiveArticle[] = [
     title: "U.S. DoD — 국방예산·동맹 협력",
     url: "https://www.defense.gov/",
     source: "U.S. Department of Defense",
-    datetime: new Date().toISOString(),
+    // Evergreen official hub link — no publication time exists.
+    datetime: "",
     query: "official",
     kind: "official",
     deskNote:
@@ -418,10 +413,7 @@ export async function fetchUsLinkLiveFeeds(): Promise<{
     (x) => x.category === "industry",
   );
 
-  const stockNews = stockBundles
-    .flat()
-    .sort((a, b) => (a.datetime < b.datetime ? 1 : -1))
-    .slice(0, 48);
+  const stockNews = sortTimedNewestFirst(stockBundles.flat()).slice(0, 48);
 
   return {
     aiRace: [...officialAi, ...aiRaceNews, ...aiReports].slice(0, 40),

@@ -4,41 +4,41 @@ Condensed from `docs/upgrade/MASTER_PROMPT.md` (authoritative). No requirement d
 Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MUST (S)=SHOULD (C)=COULD.
 
 ## Defects (A1)
-- [ ] D1a (M) research sorts (`ResearchDesk`, `BrokerReports`, `industry-research`, `research-utils.latestReportPerBroker`) → kernel
-- [ ] D1b (M) `naver-market.ts` research merges `a.date < b.date` → kernel
-- [ ] D1c (M) `us-street.ts` notes intraday order; headlines chronological (no per-symbol concat+slice)
-- [ ] D1d (M) `ResearchHome.tsx` merges sorted newest-first
-- [ ] D1e (M) disclosure merges (`krx-disclosures.ts`, `getScanDisclosures`, `routes/disclosures.tsx`) → kernel (formats verified)
-- [ ] D2 (M) popup-safe original opening (sync `window.open("about:blank")` in click)
-- [ ] D3 (M) KRW price scales integer + separators
-- [ ] D4 (M) Lightweight Charts NOTICE + visible TradingView link
-- [ ] D5 (M) robotics classifier: bare AI/인공지능 only with robot term; 클로봇 nameEn "CLOBOT"
+- [x] D1a (M) research sorts (`ResearchDesk`, `BrokerReports`, `industry-research`, `research-utils.latestReportPerBroker`) → kernel
+- [x] D1b (M) `naver-market.ts` research merges `a.date < b.date` → kernel
+- [x] D1c (M) `us-street.ts` notes intraday order; headlines chronological (no per-symbol concat+slice)
+- [x] D1d (M) `ResearchHome.tsx` merges sorted newest-first
+- [x] D1e (M) disclosure merges (`krx-disclosures.ts`, `getScanDisclosures`, `routes/disclosures.tsx`) → kernel (formats verified)
+- [x] D2 (M) popup-safe original opening (sync `window.open("about:blank")` in click)
+- [x] D3 (M) KRW price scales integer + separators
+- [x] D4 (M) Lightweight Charts NOTICE + visible TradingView link
+- [~] D5 (M) robotics classifier: bare AI/인공지능 only with robot term; 클로봇 nameEn "CLOBOT"
 - [ ] D6 (M) no hard caps passed off as "latest" (research 80/50/40, 7-stock 기업 tab, US 6/10 universes)
-- [ ] D7 (M) SEC UA from `SEC_USER_AGENT`; `SEC UA 미설정` in health when unset
-- [ ] D8 (M) README env section → `docs/upgrade/ENVIRONMENT.md`
+- [x] D7 (M) SEC UA from `SEC_USER_AGENT`; `SEC UA 미설정` in health when unset
+- [x] D8 (M) README env section → `docs/upgrade/ENVIRONMENT.md`
 - [ ] D9 (M) `ExportDesk.tsx` hook hoisted (Rules of Hooks)
 
 ## B0 Foundations (P1, all M)
-- [ ] B0.1 `src/lib/feed/types.ts` FeedItem/ResearchItem + mappers from ResearchReport/NewsItem (no consumer breakage)
-- [ ] B0.2a `parseSourceTime(raw,{zone,now})` all listed formats; invalid → `{iso:null,precision:"unknown"}`
-- [ ] B0.2b `compareNewestFirst` 6-rule total order
-- [ ] B0.2c `formatItemTime` (방금/N분 전/N시간 전 <12h; `MM.DD HH:mm`; date-only `MM.DD`; >180d `YYYY.MM.DD`) + tooltip KST (+ET on US)
-- [ ] B0.2d every ad-hoc date sort replaced; single-format series marked `// ked-allow-string-date-sort: single-format time series`
-- [ ] B0.3 `src/server/feeds/registry.ts` data-only registry (fields per spec) seeded with all listed sources; korea.kr dead
-- [ ] B0.4a `fetchWithPolicy` https-only, registry host allowlist (SSRF), ≤3 manual allowlisted redirects, ≤2 concurrent/host + min interval, 5 MiB cap, URL cache TTL + LRU 500, in-flight dedupe, 1 retry w/ jitter on timeout/5xx, 403/429 circuit 15 min (30 on repeat) → health
-- [ ] B0.4b charset: Content-Type → XML prolog → meta → UTF-8; EUC-KR via TextDecoder
-- [ ] B0.4c `parseFeed(xml)` RSS2/Atom/RDF → `{title,link,guid,pubDate,description,categories,author}`; strip HTML, decode entities, collapse ws
-- [ ] B0.4d `canonicalizeUrl` https, drop utm_*/fragment, keep Google News redirect URLs
-- [ ] B0.4e tests: RSS2, Atom, EUC-KR bytes, CDATA, missing dates
-- [ ] B0.5a `src/server/feeds/health.ts` per-source: last attempt/success, status, latency, count, newest publishedAt, consecutive failures, circuit, adapter path (v2/legacy/html)
-- [ ] B0.5b `/status/sources` page, Korean labels, chips, `지금 재시도` (bypass TTL once, respect circuit)
+- [x] B0.1 `src/lib/feed/types.ts` FeedItem/ResearchItem + mappers from ResearchReport/NewsItem (no consumer breakage)
+- [x] B0.2a `parseSourceTime(raw,{zone,now})` all listed formats; invalid → `{iso:null,precision:"unknown"}`
+- [x] B0.2b `compareNewestFirst` 6-rule total order
+- [x] B0.2c `formatItemTime` (방금/N분 전/N시간 전 <12h; `MM.DD HH:mm`; date-only `MM.DD`; >180d `YYYY.MM.DD`) + tooltip KST (+ET on US)
+- [x] B0.2d every ad-hoc date sort replaced; single-format series marked `// ked-allow-string-date-sort: single-format time series`
+- [x] B0.3 `src/server/feeds/registry.ts` data-only registry (fields per spec) seeded with all listed sources; korea.kr dead
+- [x] B0.4a `fetchWithPolicy` https-only, registry host allowlist (SSRF), ≤3 manual allowlisted redirects, ≤2 concurrent/host + min interval, 5 MiB cap, URL cache TTL + LRU 500, in-flight dedupe, 1 retry w/ jitter on timeout/5xx, 403/429 circuit 15 min (30 on repeat) → health
+- [x] B0.4b charset: Content-Type → XML prolog → meta → UTF-8; EUC-KR via TextDecoder
+- [x] B0.4c `parseFeed(xml)` RSS2/Atom/RDF → `{title,link,guid,pubDate,description,categories,author}`; strip HTML, decode entities, collapse ws
+- [x] B0.4d `canonicalizeUrl` https, drop utm_*/fragment, keep Google News redirect URLs
+- [x] B0.4e tests: RSS2, Atom, EUC-KR bytes, CDATA, missing dates
+- [x] B0.5a `src/server/feeds/health.ts` per-source: last attempt/success, status, latency, count, newest publishedAt, consecutive failures, circuit, adapter path (v2/legacy/html)
+- [x] B0.5b `/status/sources` page, Korean labels, chips, `지금 재시도` (bypass TTL once, respect circuit)
 - [ ] B0.5c every feed panel `소스 n/m 정상` chip → `/status/sources`
-- [ ] B0.6a cluster: NFKC, lowercase, strip `[속보]`,`[단독]`,`(종합)`,`(2보)`, trailing ` - Source`, punctuation; Hangul bigrams + Latin words − stopwords; Jaccard ≥ 0.6 & ≤ 12 h; rep = best tier then earliest
-- [ ] B0.6b importance 0–100 w/ Korean reason chips; weights in `src/data/news-keywords.ts` (tier 25/15/5, flash 15, keyword classes 10–30 cap 40, watch 20, cluster≥3 10, decay −5/h after 2h); flash ≥80, high ≥60
-- [ ] B0.6c user keyword watch persisted; feeds score + alert filters
+- [x] B0.6a cluster: NFKC, lowercase, strip `[속보]`,`[단독]`,`(종합)`,`(2보)`, trailing ` - Source`, punctuation; Hangul bigrams + Latin words − stopwords; Jaccard ≥ 0.6 & ≤ 12 h; rep = best tier then earliest
+- [x] B0.6b importance 0–100 w/ Korean reason chips; weights in `src/data/news-keywords.ts` (tier 25/15/5, flash 15, keyword classes 10–30 cap 40, watch 20, cluster≥3 10, decay −5/h after 2h); flash ≥80, high ≥60
+- [~] B0.6c user keyword watch persisted; feeds score + alert filters
 - [ ] B0.7a `GET /api/feed` params region/kinds/topics/tickers/cursor/limit; merge→cluster→score→sort; opaque cursor `publishedAt|id`; response shape; Cache-Control `public, s-maxage=30, stale-while-revalidate=60`; 8 s budget, partial
-- [ ] B0.7b `src/components/feed/`: FeedList (virtualized >200, date headers 오늘/어제/날짜, 더 보기), FeedRow (time, source badge + tier dot, 유료, headline `<a target=_blank rel="noopener noreferrer">`, 2-line snippet, ticker chips, reason chips, cluster +N), BriefingDigest, SourceHealthChip, TimeStamp, FilterBar (source/topic/min importance/watchlist-only + `matchesSearchQuery`), EmptyState (reason + health link); mobile 390 px no h-scroll, 44 px targets
-- [ ] B0.7c Briefing definition: as-of + session; snapshot tiles (source+delay); top stories ≤7 clusters/12 h by importance w/ reasons + all links; theme momentum 6 h vs prior 24 h w/ counts; upcoming events (if calendar source); optional F9 button
+- [x] B0.7b `src/components/feed/`: FeedList (virtualized >200, date headers 오늘/어제/날짜, 더 보기), FeedRow (time, source badge + tier dot, 유료, headline `<a target=_blank rel="noopener noreferrer">`, 2-line snippet, ticker chips, reason chips, cluster +N), BriefingDigest, SourceHealthChip, TimeStamp, FilterBar (source/topic/min importance/watchlist-only + `matchesSearchQuery`), EmptyState (reason + health link); mobile 390 px no h-scroll, 44 px targets
+- [~] B0.7c Briefing definition: as-of + session; snapshot tiles (source+delay); top stories ≤7 clusters/12 h by importance w/ reasons + all links; theme momentum 6 h vs prior 24 h w/ counts; upcoming events (if calendar source); optional F9 button
 
 ## F1 KR News `/news/kr` (P2)
 - [ ] F1.1 (M) sources: stock.naver FLASHNEWS/MAINNEWS + focus 401/402/403/404/406/429; Hankyung finance+economy; Yonhap/Maeil if verified; Google News `코스피`,`코스닥`,`외국인 순매수`,`증시 마감` (`when:1d`); disclosures via `getScanDisclosures` (kind disclosure); optional KIS news-title (FHKST01011800, token cache ≤1/min)
@@ -131,15 +131,15 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 
 ## F10 Navigation / state / dashboard
 - [ ] F10.1 (M) grouped sidebar 한국/미국/테마/도구 (exact items); `/news` → `/news/kr`; sectors below; mobile Sheet
-- [ ] F10.2 (M) store `version: 2` + `migrate`; fields usWatchlist, keywordWatch, alertSettings, newsPrefs, chartPrefs, roboticsCustom; migration test from unversioned
+- [x] F10.2 (M) store `version: 2` + `migrate`; fields usWatchlist, keywordWatch, alertSettings, newsPrefs, chartPrefs, roboticsCustom; migration test from unversioned
 - [ ] F10.3 (M) dashboard cards after first paint (`deferSecondary`): Live Wire top 5, 오늘의 리서치 (counts + 3 newest), US snapshot, Robotics snapshot
 
 ## Platform / process
-- [ ] A7 `.qa/` in `.gitignore`; restore `.vercel` before commits; per-phase commits
-- [ ] A8 `docs/upgrade/ENVIRONMENT.md`
-- [ ] A9 `scripts/verify-sources.mjs` + `npm run verify:sources` → `SOURCES_STATUS.md`
-- [ ] C1.5 `scripts/qa-smoke.mjs` + `npm run qa:smoke`
-- [ ] C1 invariant test `scripts/project-invariants.test.mjs`
+- [x] A7 `.qa/` in `.gitignore`; restore `.vercel` before commits; per-phase commits
+- [x] A8 `docs/upgrade/ENVIRONMENT.md`
+- [x] A9 `scripts/verify-sources.mjs` + `npm run verify:sources` → `SOURCES_STATUS.md`
+- [x] C1.5 `scripts/qa-smoke.mjs` + `npm run qa:smoke`
+- [x] C1 invariant test `scripts/project-invariants.test.mjs`
 - [ ] C3 `docs/upgrade/FINAL_REPORT.md` (Korean)
 
 ## Acceptance tests

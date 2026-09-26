@@ -30,12 +30,25 @@ export interface FeedImportance {
   reasons: string[];
 }
 
+export interface FeedClusterMember {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  title: string;
+  url: string;
+  publishedAt: string | null;
+  precision: TimePrecision;
+  paywalled?: boolean;
+}
+
 export interface FeedCluster {
   id: string;
+  /** Total members including the representative. */
   size: number;
+  /** Distinct source names across members. */
   sources: string[];
-  /** Ids of the other members (representative excluded). */
-  memberIds?: string[];
+  /** The other members (representative excluded), newest first. */
+  members?: FeedClusterMember[];
 }
 
 export interface FeedItem {

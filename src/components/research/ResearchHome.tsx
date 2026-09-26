@@ -14,6 +14,7 @@ import {
   type OfficialReport,
 } from "@/lib/us-official-parse";
 import { cn } from "@/lib/utils";
+import { sortOfficialNewestFirst } from "@/lib/feed/mappers";
 
 type Chip = "all" | "filings" | "earnings" | "macro" | "industry" | "analyst" | "saved";
 
@@ -45,7 +46,7 @@ export function ResearchHome({ initialTicker }: { initialTicker?: string }) {
     push(universe.data?.featuredFiling);
     const earn = (universe.data?.earnings ?? []).find((r) => r.summaryStatus === "document-extract");
     push(earn);
-    return rows.slice(0, 8);
+    return sortOfficialNewestFirst(rows).slice(0, 8);
   }, [policy.data, universe.data]);
 
   const pool = useMemo(() => {
@@ -56,11 +57,13 @@ export function ResearchHome({ initialTicker }: { initialTicker?: string }) {
       ...(universe.data?.earnings ?? []),
     ];
     const seen = new Set<string>();
-    return rows.filter((r) => {
-      if (seen.has(r.id)) return false;
-      seen.add(r.id);
-      return true;
-    });
+    return sortOfficialNewestFirst(
+      rows.filter((r) => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      }),
+    );
   }, [policy.data, universe.data]);
 
   const filtered = useMemo(() => {

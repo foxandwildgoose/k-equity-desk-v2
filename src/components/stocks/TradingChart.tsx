@@ -9,6 +9,7 @@ import type { Market } from "@/data/types";
 import type { ChartInterval, MinuteSize, OhlcBar } from "@/server/naver-market";
 import { useChartData } from "@/lib/use-market";
 import { formatPrice, formatUsd, formatVolume, formatPct } from "@/lib/format";
+import { priceFormatFor } from "@/lib/chart-format";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { RangePositionStrip, StreetTapeRow, ChartAnalyticsStrip, BandCompareStrip, RsiDivergenceStrip, MacdCrossStrip } from "@/components/stocks/RangePositionStrip";
@@ -828,14 +829,15 @@ export function TradingChart({
       close: b.close,
     }));
     candles.setData(candleData);
-    if (isUs) {
+    // D3: market-aware scale — KRW integers with separators, USD 2dp (4 under $1).
+    {
       const penny = bars.some((b) => b.close > 0 && b.close < 1);
+      const spec = priceFormatFor(isUs ? "US" : "KR", penny ? 0.5 : bars[bars.length - 1]?.close);
       candles.applyOptions({
-        priceFormat: {
-          type: "price",
-          precision: penny ? 4 : 2,
-          minMove: penny ? 0.0001 : 0.01,
-        },
+        priceFormat:
+          spec.type === "custom" && spec.formatter
+            ? { type: "custom", minMove: spec.minMove, formatter: spec.formatter }
+            : { type: "price", precision: spec.precision, minMove: spec.minMove },
       });
     }
 
@@ -1045,7 +1047,7 @@ export function TradingChart({
     }
     markers.sort((a, b) => {
       if (typeof a.time === "number" && typeof b.time === "number") return a.time - b.time;
-      return String(a.time).localeCompare(String(b.time));
+      return String(a.time).localeCompare(String(b.time)); // ked-allow-string-date-sort: single-format time series
     });
     try {
       if (!markersApiRef.current) markersApiRef.current = createSeriesMarkers(series, markers);
@@ -1219,8 +1221,8 @@ export function TradingChart({
       const b = toXY(d.t2, d.p2);
       if (!a || !b) continue;
 
-      let x1 = Number(a.x);
-      let y1 = Number(a.y);
+      const x1 = Number(a.x);
+      const y1 = Number(a.y);
       let x2 = Number(b.x);
       let y2 = Number(b.y);
 

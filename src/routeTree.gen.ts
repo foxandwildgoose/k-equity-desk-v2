@@ -21,6 +21,7 @@ import { Route as ApiMarketStreamRouteImport } from './routes/api.market-stream'
 import { Route as EtfsIndexRouteImport } from './routes/etfs.index'
 import { Route as EtfsCodeRouteImport } from './routes/etfs.$code'
 import { Route as IndustrySectorIdRouteImport } from './routes/industry.$sectorId'
+import { Route as StatusSourcesRouteImport } from './routes/status.sources'
 import { Route as StockTickerRouteImport } from './routes/stock.$ticker'
 import { Route as UsResearchIndexRouteImport } from './routes/us-research.index'
 import { Route as UsResearchReportIdRouteImport } from './routes/us-research.$reportId'
@@ -86,6 +87,11 @@ const IndustrySectorIdRoute = IndustrySectorIdRouteImport.update({
   path: '/industry/$sectorId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StatusSourcesRoute = StatusSourcesRouteImport.update({
+  id: '/status/sources',
+  path: '/status/sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StockTickerRoute = StockTickerRouteImport.update({
   id: '/stock/$ticker',
   path: '/stock/$ticker',
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/api/market-stream': typeof ApiMarketStreamRoute
   '/etfs/$code': typeof EtfsCodeRoute
   '/industry/$sectorId': typeof IndustrySectorIdRoute
+  '/status/sources': typeof StatusSourcesRoute
   '/stock/$ticker': typeof StockTickerRoute
   '/us-research/$reportId': typeof UsResearchReportIdRoute
   '/us/$symbol': typeof UsSymbolRoute
@@ -135,6 +142,7 @@ export interface FileRoutesByTo {
   '/api/market-stream': typeof ApiMarketStreamRoute
   '/etfs/$code': typeof EtfsCodeRoute
   '/industry/$sectorId': typeof IndustrySectorIdRoute
+  '/status/sources': typeof StatusSourcesRoute
   '/stock/$ticker': typeof StockTickerRoute
   '/us-research/$reportId': typeof UsResearchReportIdRoute
   '/us/$symbol': typeof UsSymbolRoute
@@ -154,6 +162,7 @@ export interface FileRoutesById {
   '/api/market-stream': typeof ApiMarketStreamRoute
   '/etfs/$code': typeof EtfsCodeRoute
   '/industry/$sectorId': typeof IndustrySectorIdRoute
+  '/status/sources': typeof StatusSourcesRoute
   '/stock/$ticker': typeof StockTickerRoute
   '/us-research/$reportId': typeof UsResearchReportIdRoute
   '/us/$symbol': typeof UsSymbolRoute
@@ -174,6 +183,7 @@ export interface FileRouteTypes {
     | '/api/market-stream'
     | '/etfs/$code'
     | '/industry/$sectorId'
+    | '/status/sources'
     | '/stock/$ticker'
     | '/us-research/$reportId'
     | '/us/$symbol'
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | '/api/market-stream'
     | '/etfs/$code'
     | '/industry/$sectorId'
+    | '/status/sources'
     | '/stock/$ticker'
     | '/us-research/$reportId'
     | '/us/$symbol'
@@ -208,6 +219,7 @@ export interface FileRouteTypes {
     | '/api/market-stream'
     | '/etfs/$code'
     | '/industry/$sectorId'
+    | '/status/sources'
     | '/stock/$ticker'
     | '/us-research/$reportId'
     | '/us/$symbol'
@@ -226,6 +238,7 @@ export interface RootRouteChildren {
   WatchlistRoute: typeof WatchlistRoute
   ApiMarketStreamRoute: typeof ApiMarketStreamRoute
   IndustrySectorIdRoute: typeof IndustrySectorIdRoute
+  StatusSourcesRoute: typeof StatusSourcesRoute
   StockTickerRoute: typeof StockTickerRoute
   UsSymbolRoute: typeof UsSymbolRoute
 }
@@ -316,6 +329,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndustrySectorIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/status/sources': {
+      id: '/status/sources'
+      path: '/status/sources'
+      fullPath: '/status/sources'
+      preLoaderRoute: typeof StatusSourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/stock/$ticker': {
       id: '/stock/$ticker'
       path: '/stock/$ticker'
@@ -384,6 +404,7 @@ const rootRouteChildren: RootRouteChildren = {
   WatchlistRoute: WatchlistRoute,
   ApiMarketStreamRoute: ApiMarketStreamRoute,
   IndustrySectorIdRoute: IndustrySectorIdRoute,
+  StatusSourcesRoute: StatusSourcesRoute,
   StockTickerRoute: StockTickerRoute,
   UsSymbolRoute: UsSymbolRoute,
 }

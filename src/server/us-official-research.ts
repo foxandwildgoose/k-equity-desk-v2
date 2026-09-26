@@ -33,8 +33,12 @@ import {
   type UsOfficialUniverse,
   type XbrlFact,
 } from "@/lib/us-official-parse";
+import { sortOfficialNewestFirst } from "@/lib/feed/mappers";
 
-const UA = "KoreaEquityDesk research@example.com";
+/** SEC fair-access UA (D7): real contact from SEC_USER_AGENT; placeholder only as a fallback (flagged in Source Health). */
+function secUa(): string {
+  return process.env.SEC_USER_AGENT?.trim() || "KoreaEquityDesk research@example.com";
+}
 const TTL_MS = 20 * 60 * 1000;
 export const OFFICIAL_UNIVERSE = ["NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META"] as const;
 
@@ -63,7 +67,7 @@ async function getText(url: string): Promise<Got> {
   try {
     const res = await fetch(url, {
       headers: {
-        "User-Agent": UA,
+        "User-Agent": secUa(),
         Accept: "text/html,application/json;q=0.9,*/*;q=0.8",
       },
       redirect: "follow",
@@ -1026,9 +1030,9 @@ export async function fetchUsOfficialUniverse(): Promise<UsOfficialUniverse> {
   const filings = packs.flatMap((p) => p.filings.filter((f) => f.kind === "10-Q" || f.kind === "10-K" || f.kind === "DEF 14A" || f.badge === "8-K"));
   const earnings = packs.flatMap((p) => p.earnings);
   let featuredFiling: OfficialReport | null = null;
-  const newestQ = filings
-    .filter((f) => f.kind === "10-Q" && f.publishedAt && f.accession)
-    .sort((a, b) => (a.publishedAt! < b.publishedAt! ? 1 : -1))[0];
+  const newestQ = sortOfficialNewestFirst(
+    filings.filter((f) => f.kind === "10-Q" && f.publishedAt && f.accession),
+  )[0];
   if (newestQ?.accession) {
     const pack = packs.find((p) => p.symbol === newestQ.tickers[0]);
     if (pack?.cik) {

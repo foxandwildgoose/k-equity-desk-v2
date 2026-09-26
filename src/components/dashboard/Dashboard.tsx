@@ -107,10 +107,15 @@ export function Dashboard() {
   const { data, isLoading, isError, dataUpdatedAt } = useMarketQuotes();
   // Secondary desks load after first paint so quote tape wins the race
   const [deferSecondary, setDeferSecondary] = useState(false);
+  // The route chunk hydrates after the shell, whose queries may already have
+  // settled; keep the SSR text until mounted to avoid a hydration mismatch.
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    setMounted(true);
     const id = window.setTimeout(() => setDeferSecondary(true), 150);
     return () => window.clearTimeout(id);
   }, []);
+  const showLoading = isLoading || !mounted;
   const researchQ = useResearchDesk({ enabled: deferSecondary });
   const etfQ = useEtfMarket({
     bucket: "retirement",
@@ -140,8 +145,6 @@ export function Dashboard() {
     return [...map.values()];
   }, [data?.quotes, extra.data?.quotes]);
   const { gainers, losers } = marketMoversFromQuotes(quotes, 6);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   const watched = watchlist
     .map((c) => {
@@ -218,7 +221,7 @@ export function Dashboard() {
               </span>
             )}
           </div>
-          {isError && (
+          {mounted && isError && (
             <span className="text-[11px] text-price-down">
               시세 조회 실패 — 자동 재시도
             </span>
@@ -526,7 +529,7 @@ export function Dashboard() {
         </h2>
         <div className="flex flex-col gap-0.5">
           {gainers.length === 0 ? (
-            <p className="empty-state">{isLoading ? "로딩 중…" : "데이터 없음"}</p>
+            <p className="empty-state">{showLoading ? "로딩 중…" : "데이터 없음"}</p>
           ) : (
             gainers.map((st) => <StockMiniRow key={st.code} stock={st} />)
           )}
@@ -538,7 +541,7 @@ export function Dashboard() {
         </h2>
         <div className="flex flex-col gap-0.5">
           {losers.length === 0 ? (
-            <p className="empty-state">{isLoading ? "로딩 중…" : "데이터 없음"}</p>
+            <p className="empty-state">{showLoading ? "로딩 중…" : "데이터 없음"}</p>
           ) : (
             losers.map((st) => <StockMiniRow key={st.code} stock={st} />)
           )}
