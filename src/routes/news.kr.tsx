@@ -32,9 +32,12 @@ function KrNewsPage() {
   const fx = useMarketSnapshot(["usdkrw"]);
   const now = useNow(60_000);
 
+  // Shell queries (MarketBar) can settle before this lazy route hydrates:
+  // keep the SSR state until mounted (`now` is null during SSR).
+  const mounted = now != null;
   const tiles = useMemo<SnapshotTile[]>(() => {
     const out: SnapshotTile[] = [];
-    const byId = new Map((indices.data?.indices ?? []).map((i) => [i.id, i]));
+    const byId = new Map((mounted ? (indices.data?.indices ?? []) : []).map((i) => [i.id, i]));
     for (const [id, label] of [
       ["kospi", "코스피"],
       ["kosdaq", "코스닥"],
@@ -49,10 +52,10 @@ function KrNewsPage() {
         changePct: i ? i.changePct : null,
         source: "네이버 스냅샷",
         delay: "약 30초 갱신",
-        reason: indices.isLoading ? "수신 중" : "지수 미수신",
+        reason: !mounted || indices.isLoading ? "수신 중" : "지수 미수신",
       });
     }
-    const usd = fx.data?.rows.find((r) => r.id === "usdkrw");
+    const usd = mounted ? fx.data?.rows.find((r) => r.id === "usdkrw") : undefined;
     out.push({
       id: "usdkrw",
       label: "원/달러",
@@ -61,12 +64,12 @@ function KrNewsPage() {
       changePct: usd?.changePct ?? null,
       source: "Yahoo Finance",
       delay: usd?.delayMinutes ? `지연 ${usd.delayMinutes}분` : "지연 시세",
-      reason: fx.isLoading ? "수신 중" : "환율 미수신",
+      reason: !mounted || fx.isLoading ? "수신 중" : "환율 미수신",
     });
     return out;
-  }, [indices.data, indices.isLoading, fx.data, fx.isLoading]);
+  }, [indices.data, indices.isLoading, fx.data, fx.isLoading, mounted]);
 
-  const sourceSession = krIndexStatusLabel(indices.data?.indices?.[0]?.marketStatus);
+  const sourceSession = mounted ? krIndexStatusLabel(indices.data?.indices?.[0]?.marketStatus) : null;
   const session = sourceSession
     ? { label: sourceSession, detail: "네이버 지수 marketStatus" }
     : now != null

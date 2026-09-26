@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sheet";
 import { useAppStore } from "@/lib/store";
 import { Toaster } from "sonner";
+import { LiveWireButton, LiveWireDrawer, LiveWireRunner, TickerTape } from "@/components/wire/LiveWire";
 import {
   CHART_ATTRIBUTION_LABEL,
   CHART_ATTRIBUTION_URL,
@@ -80,6 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SearchCommand className="min-w-0 max-w-xl mx-auto w-full" />
 
             <div className="flex items-center justify-end gap-0.5">
+              <LiveWireButton />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -160,8 +162,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Link>
               </p>
             </footer>
+            <div className="sticky bottom-0 z-30">
+              <TickerTape />
+            </div>
           </main>
         </div>
+
+        <LiveWireRunner />
+        <LiveWireDrawer />
 
         <Toaster
           theme={theme}

@@ -41,7 +41,7 @@ mappers accept several candidate field names and stay `unverified`.
 | P2 | done | /api/feed, news adapters, /news/kr, /news/us, grouped sidebar, LiveNews paging, US MarketBar |
 | P3 | done | research v2 adapter + desk, detail sheet, Δ% rule, pre-resolve; US tiers, Street Moves + CSV, briefing |
 | P4 | done | ETF news (/news/etf + /etfs tab), robotics section (6 tabs), Federal Register, cross-links |
-| P5 | pending | |
+| P5 | done | /api/wire, Live Wire engine (Web Locks leader), drawer/badge/toasts/OS opt-in, /settings/alerts, SSE hardening |
 | P6 | pending | |
 | P7 | pending | |
 
@@ -59,6 +59,10 @@ mappers accept several candidate field names and stay `unverified`.
 - Google News theme queries carry a recency window (`when:14d` ETF topics, `when:7d` issuer brands and robot market, `when:30d` robot policy) because GN search is relevance-ranked.
 - ETF issuer = brand prefix of the ETF name (KODEX → 삼성자산운용 …); the live list carries no issuer field.
 - Robotics KR/US basket 1D % = equal weight over resolved rows excluding `indirect` exposure names (stated on the tile).
+
+- Live Wire notifications: OS notifications fire from the elected leader tab only; in-app toasts fire in the visible tab(s). Quiet hours suppress OS notifications and sound; in-app toasts and the badge keep working.
+- Wire items are re-scored on the client with the viewer's watchlist/keywords (same kernel as `/api/feed`), so tiers can rise for watch matches.
+- `/api/market-stream` accepts an optional `maxMs` (clamped 5–240 s) used by the QA harness to verify reconnects quickly; the default lifetime stays 240 s.
 
 ## Deviations
 - Branch name (see Base).
@@ -79,6 +83,9 @@ mappers accept several candidate field names and stay `unverified`.
 - F6.7 OFFICIAL filings for US robot tickers load on demand per symbol (reuses `CompanyOfficial`); PUBLIC_RESEARCH registry is empty so the PUBLIC column shows the registry note.
 - `robotics-universe` is a registry pseudo-source (no URL) whose health row lists unresolved names; it has no adapter, so `/status/sources` shows 「기존 모듈 경로」 and retry is disabled for it.
 - Yahoo 1D change basis fixed kernel-wide: `previousClose` → prior session close from daily bars → `chartPreviousClose` only when it is the prior session (the P2 5-day tiles would otherwise show a 5-day change).
+
+- Price alerts: the evaluator (AT-33) and the settings list ship in P5; creating horizontal-line alerts from charts lands with the P6 chart workspace.
+- Web Push (background notifications with the browser closed) is out of scope — needs VAPID keys, subscription storage and a scheduler; stated on `/settings/alerts`.
 
 ## Blockers
 - Network egress denies every market-data host (not a credential issue). No paid service needed.
@@ -113,5 +120,14 @@ mappers accept several candidate field names and stay `unverified`.
 5. Fixes: Yahoo 1D basis (prior session), `/industry/$sectorId` hydration race (mounted guard).
 6. Gates: typecheck 0 · tests 201 + 182 · ESLint changed 0 errors · build ok · qa:smoke 46/46 (23 routes × 2) · qa:acceptance AT-22/23/25/28 pass · verify:sources OFFLINE (64 blocked, 4 skipped).
 
+### P5 — Live Wire (done)
+1. `GET /api/wire?regions=` (canonical sorted regions, newest 100, high-frequency registry subset whose fetch TTL = registry pollSec per the F8.1 table, cluster + score, etf/robotics topic tags, `s-maxage=20, swr=40`, 7.5 s budget, partial).
+2. `src/lib/wire/live-wire.ts` (pure): cadence 20/60/180 s + backoff ≤ 5 min, id + cluster dedupe with first-load seeding, region/category toggles, KST quiet hours, notification planner (≤ 5 / 10 min + one digest; OS only with permission, leader, flash or watch match). `src/lib/alerts/price-alert.ts` crossing evaluator. Tests: AT-31/32/33.
+3. `useLiveWireEngine` / `useLiveWire`: Web Locks leader (fallback localStorage heartbeat), BroadcastChannel page sharing, persisted seen markers + unread, sonner toasts, OS notifications (click focuses tab and opens the drawer on the item), WebAudio beep.
+4. UI: header bell + unread badge, right drawer (전체·한국·미국·ETF·로봇·관심종목, min tier, sources, pause, 데스크톱 알림 켜기), optional desktop ticker tape; `/settings/alerts` (in-app, OS, quiet hours, regions, categories, sound, ticker, price-alert list); sidebar 도구 → 알림 설정.
+5. SSE: `retry: 3000`, proactive close at 240 s with a `reconnect` event, client `재연결 중` state, Naver snapshot fallback unchanged.
+6. Fixes: `/news/kr` and `/news/us` hydration races (shell queries settling before the lazy route hydrates) → mounted guards.
+7. Gates: typecheck 0 · tests 201 + 188 · ESLint changed 0 errors · build ok · qa:smoke 40/40 (20 routes × 2) · qa:acceptance 19/19 (AT-09…AT-34 browser set).
+
 ## Next steps
-- P5: Live Wire (`/api/wire`, leader election, drawer, toasts, OS notifications opt-in, rate limit + digest, quiet hours, `/settings/alerts`, SSE hardening).
+- P6: Pro charts (core, indicators with tests, drawings, compare, `/chart` workspace, persistence + `ke-chart-draw:{code}` migration, overlays, price alerts from charts, replay, extended hours, mobile, perf).

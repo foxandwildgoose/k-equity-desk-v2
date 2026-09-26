@@ -225,7 +225,7 @@ function StockPage() {
                 </p>
               )}
               <p className="mt-1 text-[10px] text-muted-foreground">
-                {quote.marketStatus || "시세"} · {liveStatus.connected || quote.source === "kis-krx-websocket" ? "KIS·KRX 실시간" : "네이버 스냅샷"}
+                {quote.marketStatus || "시세"} · {liveStatus.connected || quote.source === "kis-krx-websocket" ? "KIS·KRX 실시간" : liveStatus.enabled && liveStatus.reconnecting ? "재연결 중 · 네이버 스냅샷" : "네이버 스냅샷"}
                 {dataUpdatedAt
                   ? ` · ${new Date(dataUpdatedAt).toLocaleTimeString("ko-KR")}`
                   : ""}

@@ -243,6 +243,7 @@ export function Dashboard() {
         quotes={quotes}
         research={researchQ.data?.industry ?? []}
         liveConnected={liveStatus.connected}
+        liveReconnecting={Boolean(liveStatus.enabled && liveStatus.reconnecting)}
         snapshotAgeMs={
           mounted && dataUpdatedAt > 0 ? Date.now() - dataUpdatedAt : null
         }

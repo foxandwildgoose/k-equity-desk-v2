@@ -489,6 +489,118 @@ await run(browser, "AT-28", async (page) => {
   record("AT-28", cross === "/robotics" && side === "/robotics" && nav >= 3, `crosslink=${cross} sidebarSector=${side} links=${nav} (CLOBOT nameEn covered by unit test)`);
 });
 
+// ── P5: Live Wire ───────────────────────────────────────────────────────
+// synthetic fixture (format sample), not market data
+const WIRE_A = item({ id: "qa:w1", sourceId: "naver-flash", sourceName: "네이버 증권 속보", sourceTier: 1, title: "[QA 샘플] 첫 속보", url: "https://example.com/qa/w1", publishedAt: iso(3), importance: { score: 66, tier: "high", reasons: ["1차 출처 +25"] } });
+// Scores FLASH under the real client re-score: tier 1 + 속보 + 인수 + default watchlist 005930.
+const WIRE_B = item({ id: "qa:w2", sourceId: "naver-flash", sourceName: "네이버 증권 속보", sourceTier: 1, title: "[속보] [QA 샘플] 삼성전자 인수 발표 새 FLASH", url: "https://example.com/qa/w2", publishedAt: iso(1), tickers: [{ market: "KR", code: "005930" }], importance: { score: 80, tier: "flash", reasons: ["1차 출처 +25"] } });
+function wirePage(items) {
+  return { items, nextCursor: null, partial: false, sources: [{ id: "naver-flash", ok: true, count: items.length, state: "ok" }], generatedAt: new Date().toISOString(), regions: "KR,US" };
+}
+
+await run(browser, "AT-29", async (page, ctx) => {
+  const counts = new Map();
+  await ctx.route("**/api/wire?**", async (route) => {
+    const who = route.request().frame()?.page() === page ? "A" : "B";
+    counts.set(who, (counts.get(who) ?? 0) + 1);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(wirePage([WIRE_A])) });
+  });
+  await page.goto(`${BASE}/settings/alerts`, { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(2_500);
+  const second = await ctx.newPage();
+  await second.goto(`${BASE}/settings/alerts`, { waitUntil: "domcontentloaded" });
+  await second.waitForTimeout(6_000);
+  const a = counts.get("A") ?? 0;
+  const b = counts.get("B") ?? 0;
+  // The follower still gets the page over BroadcastChannel.
+  await second.click('[data-testid="live-wire-button"]');
+  const shared = await second.waitForSelector('[data-testid="live-wire-drawer"] [data-feed-id="qa:w1"]', { timeout: 10_000 }).then(() => true).catch(() => false);
+  record("AT-29", a >= 1 && b === 0 && shared, `wire requests leader=${a} follower=${b} followerSharedPage=${shared}`);
+});
+
+await run(browser, "AT-30", async (page, ctx) => {
+  await ctx.grantPermissions(["notifications"], { origin: BASE });
+  await ctx.addInitScript(() => {
+    window.__permCalls = 0;
+    if (typeof Notification !== "undefined") {
+      const orig = Notification.requestPermission.bind(Notification);
+      Notification.requestPermission = (...args) => {
+        window.__permCalls += 1;
+        return orig(...args);
+      };
+    }
+  });
+  await mockFeed(page, {});
+  await page.route("**/api/wire?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(wirePage([WIRE_A])) }));
+  let onLoad = 0;
+  for (const path of ["/", "/news/kr", "/settings/alerts"]) {
+    await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1_500);
+    onLoad += await page.evaluate(() => window.__permCalls);
+  }
+  await page.click('[data-testid="alerts-os"] [data-testid="enable-desktop-alerts"]');
+  await page.waitForSelector('[data-testid="alerts-os"] >> text=데스크톱 알림 켜짐', { timeout: 5_000 });
+  const afterClick = await page.evaluate(() => window.__permCalls);
+  record("AT-30", onLoad === 0 && afterClick === 1, `requestPermission calls on load=${onLoad}, after button click=${afterClick}`);
+});
+
+await run(browser, "AT-32", async (page) => {
+  let n = 0;
+  await page.route("**/api/wire?**", async (route) => {
+    n += 1;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(wirePage(n === 1 ? [WIRE_A] : [WIRE_B, WIRE_A])) });
+  });
+  // Weekday 11:00 KST so the visible-tab cadence (20 s) applies regardless of the real date.
+  await page.clock.install({ time: new Date("2026-09-24T02:00:00Z") });
+  await page.goto(`${BASE}/settings/alerts`, { waitUntil: "domcontentloaded" });
+  // Quiet hours all day so any OS notification would be suppressed; the badge must still count.
+  await page.waitForSelector('[data-testid="alerts-quiet"] input[aria-label="시작"]');
+  await page.fill('[data-testid="alerts-quiet"] input[aria-label="시작"]', "00:00");
+  await page.fill('[data-testid="alerts-quiet"] input[aria-label="종료"]', "23:59");
+  for (let i = 0; i < 40 && n < 1; i++) await page.waitForTimeout(250);
+  await page.clock.fastForward(25_000);
+  const badge = await page.waitForSelector('[data-testid="live-wire-badge"]', { timeout: 15_000 }).then((el) => el.textContent()).catch(() => null);
+  const toastShown = await page.waitForSelector('[data-sonner-toast]:has-text("삼성전자 인수 발표")', { timeout: 3_000 }).then(() => true).catch(() => false);
+  await page.screenshot({ path: join(outDir, "at-at-32-toast.png") });
+  await page.click('[data-testid="live-wire-button"]');
+  const flashRow = await page.waitForSelector('[data-testid="live-wire-drawer"] [data-feed-id="qa:w2"]', { timeout: 5_000 }).then(() => true).catch(() => false);
+  const cleared = !(await page.isVisible('[data-testid="live-wire-badge"]'));
+  record("AT-32", badge === "1" && flashRow && cleared && toastShown, `badge="${badge}" inAppToast=${toastShown} drawerRow=${flashRow} badgeClearedOnOpen=${cleared} polls=${n}`);
+});
+
+await run(browser, "AT-34", async (page) => {
+  await page.goto(`${BASE}/settings/alerts`, { waitUntil: "domcontentloaded" });
+  const out = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const started = Date.now();
+        const es = new EventSource("/api/market-stream?codes=005930&maxMs=5000");
+        let opens = 0;
+        let reconnectEvents = 0;
+        let firstCloseMs = null;
+        es.onopen = () => {
+          opens += 1;
+          if (opens >= 2) {
+            es.close();
+            resolve({ opens, reconnectEvents, firstCloseMs, totalMs: Date.now() - started });
+          }
+        };
+        es.addEventListener("reconnect", () => {
+          reconnectEvents += 1;
+          if (firstCloseMs == null) firstCloseMs = Date.now() - started;
+        });
+        setTimeout(() => {
+          es.close();
+          resolve({ opens, reconnectEvents, firstCloseMs, totalMs: Date.now() - started });
+        }, 15_000);
+      }),
+  );
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(join(root, "src/routes/api.market-stream.ts"), "utf8");
+  const defaults = /MAX_STREAM_MS = 240_000/.test(src) && /RETRY_MS = 3_000/.test(src) && /retry: \$\{RETRY_MS\}/.test(src);
+  record("AT-34", out.opens >= 2 && out.reconnectEvents >= 1 && defaults, `opens=${out.opens} reconnectEvents=${out.reconnectEvents} firstClose≈${out.firstCloseMs}ms (maxMs=5000 in QA; default 240 s, retry 3 s)=${defaults}`);
+});
+
 await browser.close();
 writeFileSync(join(outDir, "acceptance.json"), JSON.stringify({ at: new Date().toISOString(), results }, null, 2));
 process.exit(results.every((r) => r.ok) ? 0 : 1);

@@ -8,7 +8,7 @@ import { clusterItems } from "@/lib/feed/cluster";
 import { scoreImportance } from "@/lib/feed/importance";
 import { pageAfterCursor, sortNewestFirst } from "@/lib/feed/sort";
 import type { FeedItem, FeedPage, FeedSourceResult, ItemKind, Region } from "@/lib/feed/types";
-import { enrichEtfStory, type EtfRowLike } from "@/lib/etf-news";
+import { enrichEtfStory, isEtfStory, type EtfRowLike } from "@/lib/etf-news";
 import { isRobotPolicyText, policyStatusTopicIds, robotTopicIds } from "@/lib/robotics/classify";
 import { isRoboticsText } from "@/data/research-taxonomy";
 
@@ -96,6 +96,37 @@ export async function postProcessGroup(group: FeedGroup, items: FeedItem[]): Pro
     .map((it) => addTopics(it, ["policy", "robotics", ...(it.topics.some((t) => t.startsWith("status:")) ? [] : policyStatusTopicIds(`${text(it)} ${it.outlet ?? ""}`))]));
 }
 
+/**
+ * Live Wire (F8.1): the high-frequency subset. Fetch-cache TTL = registry
+ * pollSec (flash/main 30 s, Hankyung 60 s, Fed/SEC 120 s, GN 120 s,
+ * Bloomberg 300 s).
+ */
+export const WIRE_SOURCES: Record<"KR" | "US", string[]> = {
+  KR: ["naver-flash", "naver-main", "hankyung-finance", "hankyung-economy", "gn-kr-market"],
+  US: [
+    "bloomberg-markets",
+    "bloomberg-economics",
+    "bloomberg-technology",
+    "bloomberg-politics",
+    "bloomberg-wealth",
+    "gn-bloomberg",
+    "fed-press",
+    "sec-8k-atom",
+    "gn-us-market",
+  ],
+};
+
+/** Wire items carry `etf` / `robotics` topics so the drawer tabs can filter them. */
+export function tagWireThemes(items: FeedItem[]): FeedItem[] {
+  return items.map((it) => {
+    const text = `${it.title} ${it.snippet ?? ""}`;
+    const extra: string[] = [];
+    if (isEtfStory(it.title)) extra.push("etf");
+    if (isRoboticsText(text)) extra.push("robotics");
+    return addTopics(it, extra);
+  });
+}
+
 const KIND_BY_ID = new Map(SOURCE_REGISTRY.map((s) => [s.id, s.kind]));
 
 export interface FeedQuery {
@@ -109,11 +140,14 @@ export interface FeedQuery {
   sourceIds?: string[];
   /** Theme group: replaces region sources and post-processes items. */
   group?: FeedGroup;
+  /** Live Wire subset (replaces region sources; tags etf/robotics topics). */
+  wire?: boolean;
   budgetMs?: number;
   now?: number;
 }
 
 function sourceIdsFor(q: FeedQuery): string[] {
+  if (q.wire) return [...new Set(q.regions.flatMap((r) => (r === "GLOBAL" ? [...WIRE_SOURCES.KR, ...WIRE_SOURCES.US] : WIRE_SOURCES[r])))];
   const ids = new Set<string>(q.group ? GROUP_SOURCES[q.group] : (q.sourceIds ?? []));
   if (!q.group && !q.sourceIds?.length) for (const r of q.regions) for (const id of FEED_SOURCES[r]) ids.add(id);
   const kinds = new Set(q.kinds ?? []);
@@ -135,13 +169,13 @@ const AGG_TTL_MS = 15_000;
 /** Merge + cluster + score + sort (full list, newest first). */
 export async function collectFeed(q: FeedQuery): Promise<{ items: FeedItem[]; sources: FeedSourceResult[]; partial: boolean; generatedAt: string }> {
   const ids = sourceIdsFor(q).sort();
-  const key = `${q.group ?? ""}|${ids.join(",")}`;
+  const key = `${q.wire ? "wire" : (q.group ?? "")}|${ids.join(",")}`;
   const hit = aggCache.get(key);
   const now = q.now ?? Date.now();
   if (hit && now - hit.at < AGG_TTL_MS) return hit;
   const { results, partial } = await runSources(ids, { budgetMs: q.budgetMs ?? 7_500, perSourceMs: 7_000, now });
   const raw = results.flatMap((r) => r.items);
-  const merged = q.group ? await postProcessGroup(q.group, raw) : raw;
+  const merged = q.group ? await postProcessGroup(q.group, raw) : q.wire ? tagWireThemes(raw) : raw;
   const clustered = clusterItems(merged).map((it) => ({ ...it, importance: scoreImportance(it, { now }) }));
   const out = {
     at: now,

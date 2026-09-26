@@ -36,9 +36,12 @@ function UsNewsPage() {
   const tz = useAppStore((s) => s.newsPrefs.tz);
   const now = useNow(60_000);
 
+  // Shell queries (MarketBar) can settle before this lazy route hydrates:
+  // render query-dependent parts only after mount (`now` is null in SSR).
+  const mounted = now != null;
   const tiles = useMemo<SnapshotTile[]>(
     () =>
-      (snap.data?.rows ?? []).map((r) => ({
+      (mounted ? (snap.data?.rows ?? []) : []).map((r) => ({
         id: r.id,
         label: r.label,
         value: r.price != null ? fmt(r.price, r.id === "btc" ? 0 : 2) : null,
@@ -49,11 +52,11 @@ function UsNewsPage() {
         asOf: r.asOf,
         reason: r.error ? "미수신" : undefined,
       })),
-    [snap.data],
+    [snap.data, mounted],
   );
 
   const events = useMemo<BriefingEvent[] | undefined>(() => {
-    if (!cal.data) return undefined;
+    if (!cal.data || !mounted) return undefined;
     return cal.data.events.map((e) => {
       const t = parseSourceTime(e.iso, { zone: "America/New_York" });
       return {
@@ -101,7 +104,7 @@ function UsNewsPage() {
         topStories={stories}
         themes={themes}
         events={events ?? []}
-        eventsNote={cal.isLoading ? "일정 불러오는 중…" : "향후 7일 내 연준·BEA 일정을 받지 못했습니다(소스 미검증일 수 있음)."}
+        eventsNote={!mounted || cal.isLoading ? "일정 불러오는 중…" : "향후 7일 내 연준·BEA 일정을 받지 못했습니다(소스 미검증일 수 있음)."}
         tz={tz}
       />
       <NewsDesk

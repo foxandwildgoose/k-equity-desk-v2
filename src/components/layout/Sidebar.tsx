@@ -21,6 +21,7 @@ import {
   Activity,
   Bot,
   PieChart,
+  BellRing,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
@@ -68,6 +69,7 @@ export const NAV_GROUPS: { id: string; label: string; items: NavItem[] }[] = [
     label: "도구",
     items: [
       { to: "/watchlist", label: "관심종목", icon: Star },
+      { to: "/settings/alerts", label: "알림 설정", icon: BellRing },
       { to: "/status/sources", label: "소스 상태", icon: Activity },
     ],
   },

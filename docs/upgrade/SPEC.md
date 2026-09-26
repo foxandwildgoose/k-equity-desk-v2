@@ -115,13 +115,13 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [ ] F7.18 (C) optional TradingView widget tab on `/us/$symbol` only, lazy, attribution kept, labeled `지연 시세 · TradingView 제공`
 
 ## F8 Live Wire (P5)
-- [ ] F8.1 (M) `GET /api/wire?regions=KR,US` newest 100, canonical sorted regions, TTL table, cluster+score, Cache-Control `public, s-maxage=20, stale-while-revalidate=40`, 8 s budget, partial
-- [ ] F8.2 (M) `useLiveWire()`: Web Locks leader (fallback BroadcastChannel + localStorage heartbeat); 20 s visible/60 s hidden/180 s both markets closed; exp backoff ≤ 5 min; dedupe id + cluster; persist last-seen + unread
-- [ ] F8.3 (M) header button + unread badge; right drawer tabs 전체·한국·미국·ETF·로봇·관심종목; min tier + source filters; pause; FeedRow; optional desktop ticker tape (off)
-- [ ] F8.4 (M) sonner toasts for high+ (configurable); OS notifications only after "데스크톱 알림 켜기" click (permission requested in click); default flash + watchlist/keyword; ≤5/10 min then one digest toast; quiet hours 23–07 KST editable; region/category toggles; optional WebAudio beep (off); click focuses tab + opens item
-- [ ] F8.5 (M) "알림 설정" page/sheet persisted via store
-- [ ] F8.6 (M) KIS SSE: `retry: 3000`, close after 240 s, client `재연결 중` state, Naver snapshot fallback kept
-- [ ] F8.x document Web Push as future work
+- [x] F8.1 (M) `GET /api/wire?regions=KR,US` newest 100, canonical sorted regions, TTL table, cluster+score, Cache-Control `public, s-maxage=20, stale-while-revalidate=40`, 8 s budget, partial
+- [x] F8.2 (M) `useLiveWire()`: Web Locks leader (fallback BroadcastChannel + localStorage heartbeat); 20 s visible/60 s hidden/180 s both markets closed; exp backoff ≤ 5 min; dedupe id + cluster; persist last-seen + unread
+- [x] F8.3 (M) header button + unread badge; right drawer tabs 전체·한국·미국·ETF·로봇·관심종목; min tier + source filters; pause; FeedRow; optional desktop ticker tape (off)
+- [x] F8.4 (M) sonner toasts for high+ (configurable); OS notifications only after "데스크톱 알림 켜기" click (permission requested in click); default flash + watchlist/keyword; ≤5/10 min then one digest toast; quiet hours 23–07 KST editable; region/category toggles; optional WebAudio beep (off); click focuses tab + opens item
+- [x] F8.5 (M) "알림 설정" page/sheet persisted via store
+- [x] F8.6 (M) KIS SSE: `retry: 3000`, close after 240 s, client `재연결 중` state, Naver snapshot fallback kept
+- [x] F8.x document Web Push as future work (settings page note + PROGRESS/FINAL_REPORT)
 
 ## F9 Optional AI layer (P7, C)
 - [ ] F9.1 enabled only with `AI_BRIEFING_ENABLED=true` + provider key + `AI_MODEL`; else no UI
@@ -147,6 +147,6 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - News: AT-09 `/news/kr` digest + list newest-first, sources, `rel="noopener noreferrer"` · AT-10 filters + 더 보기 no duplicates · AT-11 ticker chips → `/stock/$ticker`, no "LG" inside "LG에너지솔루션" · AT-12 `/news/us` tiles w/ delay labels + KST/ET; Bloomberg `유료` headline+link only · AT-13 Bloomberg off (env or toggle) removes it everywhere · AT-14 `/api/feed` Cache-Control s-maxage, ≤ 8 s w/ `partial`
 - Research: AT-15 KR tabs newest-first, date headers, totalCount, 더 보기 · AT-16 `PDF 원문` popup-safe (Playwright popup, mobile too) · AT-17 TP strip up/down; Δ% only both sourced · AT-18 7-stock list gone; company tab paginates · AT-19 US notes/headlines/official newest-first; banner; original links · AT-20 Street Moves date-desc; CSV = visible rows · AT-21 "AI 반도체" not robotics
 - ETF/Robotics: AT-22 ETF matches show code/price/volume → `/etfs/$code`; stage chips on fixtures · AT-23 robotics overview tiles w/ sources, empty w/ reason · AT-24 robot ETF regex matcher fixture · AT-25 unresolved symbols hidden + listed in health · AT-26 Federal Register filter drops premerger/early-termination; keeps robotics/Section 232 · AT-27 policy chips only on keyword presence · AT-28 `/industry/robotics` → `/robotics`; CLOBOT — P4: AT-22/23/25/28 pass in `qa:acceptance` (mocked fixtures in the harness only); AT-24/26/27 unit tests (`src/lib/robotics/robotics.test.ts`, `src/lib/etf-news.test.ts`)
-- Live Wire: AT-29 single leader polls · AT-30 no permission prompt on load · AT-31 12 items/10 min → ≤5 + 1 digest · AT-32 quiet hours suppress OS, badge still updates · AT-33 price alert fires once on cross · AT-34 SSE closes by 240 s, client reconnects
+- Live Wire: AT-29 single leader polls · AT-30 no permission prompt on load · AT-31 12 items/10 min → ≤5 + 1 digest · AT-32 quiet hours suppress OS, badge still updates · AT-33 price alert fires once on cross · AT-34 SSE closes by 240 s, client reconnects — P5: AT-29/30/32/34 pass in `qa:acceptance`; AT-31/32/33 unit tests (`src/lib/wire/live-wire.test.ts`)
 - Charts: AT-35 indicator known values · AT-36 drawings CRUD/lock/hide/undo/redo/persist · AT-37 compare % from first visible bar · AT-38 2×2 crosshair sync · AT-39 key format + migration · AT-40 replay hides future, no lookahead · AT-41 PNG/CSV names w/ symbol + timestamp · AT-42 mobile toolbar sheet, no h-scroll · AT-43 Tier B HUD/fullscreen/export/status; tests pass · AT-44 no chart without source/as-of
 - Final: AT-45 RISK_DISCLAIMER + per-item sources on new pages · AT-46 AI UI absent when unset; uncited bullets rejected · AT-47 existing routes render; KIS/ETF holdings/export desk/disclosures unchanged except fixes · AT-48 Vercel rules (no FS writes, no fn > 10 s normal)
