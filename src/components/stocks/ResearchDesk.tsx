@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { UsResearchDesk } from "@/components/stocks/UsResearchDesk";
 import { ExternalLink, Loader2, Building2, Factory, LineChart, Globe2, Search, SlidersHorizontal } from "lucide-react";
 
 export type DeskPack = {
@@ -68,6 +69,8 @@ export function ResearchDeskPanel({
   loading,
   defaultTab = "industry",
   defaultSector,
+  defaultMarket = "KR",
+  onMarketChange,
   compact = false,
   showHeader = true,
 }: {
@@ -75,11 +78,14 @@ export function ResearchDeskPanel({
   loading?: boolean;
   defaultTab?: DeskTab;
   defaultSector?: SectorId;
+  defaultMarket?: "KR" | "US";
+  onMarketChange?: (market: "KR" | "US") => void;
   compact?: boolean;
   showHeader?: boolean;
 }) {
   const data: DeskPack = pack ?? { industry: [], market: [], economy: [], featured: [] };
   const [tab, setTab] = useState<DeskTab>(defaultTab);
+  const [market, setMarket] = useState<"KR" | "US">(defaultMarket);
   const [sector, setSector] = useState<SectorId | "all">(defaultSector ?? "all");
   const [range, setRange] = useState<RangeKey>("30d");
   const [query, setQuery] = useState("");
@@ -90,9 +96,15 @@ export function ResearchDeskPanel({
 
   useEffect(() => setTab(defaultTab), [defaultTab]);
   useEffect(() => setSector(defaultSector ?? "all"), [defaultSector]);
+  useEffect(() => setMarket(defaultMarket), [defaultMarket]);
+
+  function pickMarket(next: "KR" | "US") {
+    setMarket(next);
+    onMarketChange?.(next);
+  }
 
   const extraQ = useIndustryResearch(
-    tab === "industry" && sector !== "all" ? sector : undefined,
+    market === "KR" && tab === "industry" && sector !== "all" ? sector : undefined,
   );
 
   const mergedIndustry = useMemo(() => {
@@ -179,7 +191,31 @@ export function ResearchDeskPanel({
 
   return (
     <section className={cn("space-y-3", showHeader && "rounded-xl border border-border bg-card p-3 md:p-4")}>
-      {showHeader && <div className="flex items-start justify-between gap-2"><div><h2 className="text-sm font-semibold">리서치 데스크</h2><p className="mt-0.5 text-[11px] text-muted-foreground">산업 → 핵심요약 → 원문 순으로 탐색</p></div>{loading && <Loader2 className="size-4 animate-spin text-muted-foreground" />}</div>}
+      {showHeader && <div className="flex items-start justify-between gap-2"><div><h2 className="text-sm font-semibold">리서치 데스크</h2><p className="mt-0.5 text-[11px] text-muted-foreground">한국 증권사 리포트와 미국 월가 공개 의견을 나눠 봅니다</p></div>{loading && market === "KR" && <Loader2 className="size-4 animate-spin text-muted-foreground" />}</div>}
+
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+        {([
+          ["KR", "한국 주식"],
+          ["US", "미국 주식"],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => pickMarket(id)}
+            className={cn(
+              "min-h-8 rounded-md px-2.5 py-1.5 text-[12px] font-semibold",
+              market === id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {market === "US" ? (
+        <UsResearchDesk compact={compact} />
+      ) : (
+      <>
 
       <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
         {TABS.map((t) => {
@@ -332,6 +368,8 @@ export function ResearchDeskPanel({
           </>}
         </SheetContent>
       </Sheet>
+      </>
+      )}
     </section>
   );
 }

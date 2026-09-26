@@ -344,12 +344,12 @@ export function Dashboard() {
             <FileText className="size-4" /> 리서치 데스크
           </>
         }
-        hint="산업·시황·경제 리포트를 종목과 분리해 바로 선택"
+        hint="한국 리포트와 미국 월가 의견을 나눠 바로 선택"
         href="/research"
         hrefLabel="전체 열기"
       >
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Link
             to="/research"
             search={{ tab: "industry" }}
@@ -405,6 +405,22 @@ export function Dashboard() {
                     researchQ.data.economy[0].title}
                 </div>
               )}
+            </div>
+          </Link>
+          <Link
+            to="/research"
+            search={{ market: "us" }}
+            className="group flex items-start gap-2.5 rounded-lg border border-border bg-muted/15 px-3 py-2.5 hover:bg-muted/35 transition-colors"
+          >
+            <Flag className="size-4 mt-0.5 text-desk-teal group-hover:text-foreground" />
+            <div className="min-w-0">
+              <div className="text-xs font-semibold">미국 · 월가</div>
+              <div className="text-[11px] text-muted-foreground">
+                투자은행 등급 · 목표가 · 기사 원문
+              </div>
+              <div className="mt-1 text-[11px] line-clamp-2 text-foreground/80">
+                공개된 의견만 요약하고, 카드를 누르면 원문 페이지로 갑니다.
+              </div>
             </div>
           </Link>
         </div>

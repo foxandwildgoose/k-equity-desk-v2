@@ -7,8 +7,8 @@
       "status": 200,
       "title": "대시보드 · Korea Equity Command Center",
       "hasCanvas": false,
-      "bodyTextLen": 2257,
-      "bodyTextHash": "5d8905f30e6b554032f0107ab1f7e2ae84886560e2905c298c0c49575c6f0032",
+      "bodyTextLen": 2342,
+      "bodyTextHash": "2b22bc850f17c3b866701d151c284b6617d1635623f3c5057c49601ff5b6d589",
       "bodyTextPrefix": "지수 수신 중… 실시간: KIS Open API · KRX WebSocket(설정 시) · 백업: 네이버 금융 스냅",
       "horizontalOverflow": false,
       "consoleErrors": [],
@@ -21,9 +21,9 @@
       "status": 200,
       "title": "대시보드 · Korea Equity Command Center",
       "hasCanvas": false,
-      "bodyTextLen": 3171,
-      "bodyTextHash": "3b3584709c349d3001cfb88148253eb648562465b36f011d2dace8a74319bfaf",
-      "bodyTextPrefix": "KX Equity COMMAND 마감 스냅샷(네이버) 코스피 6,788.88 -123.49 (-1.79%) 코스닥 ",
+      "bodyTextLen": 2066,
+      "bodyTextHash": "a209cc647b2a1f23bf940fc99da2c8ca9ad5d670bb60156bba1b2dbefa7cd95d",
+      "bodyTextPrefix": "KX Equity COMMAND 실시간: KIS Open API · KRX WebSocket(설정 시) · 백업: ",
       "horizontalOverflow": false,
       "consoleErrors": [],
       "pageErrors": [],
@@ -37,6 +37,7 @@
   "verdictFile": "/workspace/screenshots/app-builder-built.json",
   "divergesFromBaseline": true,
   "baselineReasons": [
-    "mobile: body text changed (1990 -> 3171 chars, hash mismatch)"
+    "desktop: body text replaced (similar length, page start changed)",
+    "mobile: body text replaced (similar length, page start changed)"
   ]
 }

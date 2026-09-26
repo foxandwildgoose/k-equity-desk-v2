@@ -3,6 +3,7 @@ import {
   getMarketQuotes,
   getStockBundle,
   getChartData,
+  getValuationSeries,
   getMarketIndices,
   getResearchPdf,
   getResearchDesk,
@@ -13,10 +14,16 @@ import {
   getUsLinkDesk,
   getSecuritySearch,
   getQuotesByCodes,
+  getUsStreet,
+  getUsOfficialPolicy,
+  getUsOfficialUniverse,
+  getUsOfficialCompany,
+  getUsOfficialReport,
 } from "@/lib/market-fns";
 import type { ChartInterval, MinuteSize, LiveQuote } from "@/server/naver-market";
 import type { SectorId } from "@/data/types";
 import { normalizeKrTicker, isKrTicker, isDigitTicker } from "@/lib/infer-sector";
+import { yahooUsSymbol } from "@/lib/valuation-series";
 import type { EtfMarketBucket } from "@/server/etf-market";
 import { UNIVERSE } from "@/data/universe";
 import { US_LINKED_CODES } from "@/data/us-link";
@@ -80,13 +87,14 @@ export function useStockBundle(code: string) {
 
 export function useChartData(opts: {
   code: string;
-  market: "KOSPI" | "KOSDAQ";
+  market: "KOSPI" | "KOSDAQ" | "US";
   interval: ChartInterval;
   minuteSize?: MinuteSize;
   range?: string;
   enabled?: boolean;
 }) {
-  const code = normalizeKrTicker(opts.code);
+  const us = opts.market === "US";
+  const code = us ? (yahooUsSymbol(opts.code) ?? opts.code.trim().toUpperCase()) : normalizeKrTicker(opts.code);
   return useQuery({
     queryKey: [
       "chart",
@@ -107,8 +115,22 @@ export function useChartData(opts: {
         },
       }),
     staleTime: opts.interval === "minute" ? 15_000 : 60_000,
-    enabled: (opts.enabled ?? true) && isKrTicker(code),
+    enabled: (opts.enabled ?? true) && (us ? yahooUsSymbol(code) != null : isKrTicker(code)),
     refetchOnWindowFocus: false,
+  });
+}
+
+export function useValuationSeries(code: string, enabled = true) {
+  const us = yahooUsSymbol(code);
+  const kr = normalizeKrTicker(code);
+  const key = us ?? kr;
+  return useQuery({
+    queryKey: ["valuation-series", key],
+    queryFn: () => getValuationSeries({ data: { code: key } }),
+    staleTime: 6 * 60 * 60_000,
+    enabled: enabled && Boolean(us || isKrTicker(kr)),
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 }
 
@@ -143,6 +165,59 @@ export function useResearchDesk(opts?: { enabled?: boolean }) {
     queryFn: () => getResearchDesk(),
     staleTime: 5 * 60_000,
     enabled: opts?.enabled ?? true,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useUsStreet(symbol?: string, opts?: { enabled?: boolean }) {
+  const ticker = symbol?.trim().toUpperCase() || "";
+  return useQuery({
+    queryKey: ["us-street", "v2", ticker || "desk"],
+    queryFn: () => getUsStreet({ data: ticker ? { symbol: ticker } : {} }),
+    staleTime: 10 * 60_000,
+    enabled: opts?.enabled ?? true,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useUsOfficialPolicy(opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["us-official-policy"],
+    queryFn: () => getUsOfficialPolicy(),
+    staleTime: 10 * 60_000,
+    enabled: opts?.enabled ?? true,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useUsOfficialUniverse(opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["us-official-universe"],
+    queryFn: () => getUsOfficialUniverse(),
+    staleTime: 10 * 60_000,
+    enabled: opts?.enabled ?? true,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useUsOfficialCompany(symbol?: string) {
+  const ticker = symbol?.trim().toUpperCase() || "";
+  return useQuery({
+    queryKey: ["us-official-company", ticker],
+    queryFn: () => getUsOfficialCompany({ data: { symbol: ticker } }),
+    enabled: ticker.length > 0,
+    staleTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useUsOfficialReport(id?: string) {
+  const key = id?.trim() || "";
+  return useQuery({
+    queryKey: ["us-official-report", key],
+    queryFn: () => getUsOfficialReport({ data: { id: key } }),
+    enabled: key.length > 2,
+    staleTime: 10 * 60_000,
     refetchOnWindowFocus: false,
   });
 }

@@ -14,6 +14,7 @@ import {
   Layers,
   Flag,
   Ship,
+  Landmark,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
@@ -27,6 +28,7 @@ const NAV: Array<{
   { to: "/", label: "대시보드", icon: LayoutDashboard, exact: true },
   { to: "/etfs", label: "퇴직연금 ETF", icon: Layers, tone: "text-desk-gold" },
   { to: "/us-link", label: "미국 연계", icon: Flag, tone: "text-desk-teal" },
+  { to: "/us-research", label: "Research", icon: Landmark, tone: "text-desk-gold" },
   { to: "/export-desk", label: "수출 × KOSPI", icon: Ship, tone: "text-desk-gold" },
   { to: "/research", label: "리서치 데스크", icon: Library },
   { to: "/disclosures", label: "주요 공시", icon: FileText },

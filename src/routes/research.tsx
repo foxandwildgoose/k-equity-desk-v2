@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useResearchDesk } from "@/lib/use-market";
 import { ResearchDeskPanel } from "@/components/stocks/ResearchDesk";
 import { DATA_LABEL } from "@/data/market";
@@ -8,22 +8,24 @@ import { Loader2 } from "lucide-react";
 type ResearchSearch = {
   tab?: "industry" | "market" | "economy" | "featured";
   sector?: import("@/data/types").SectorId;
+  market?: "kr" | "us";
 };
 
 export const Route = createFileRoute("/research")({
   component: ResearchPage,
   validateSearch: (s: Record<string, unknown>): ResearchSearch => {
     const tab = s.tab;
+    const market = s.market === "us" || s.market === "kr" ? s.market : undefined;
+    const sector = typeof s.sector === "string" ? (s.sector as ResearchSearch["sector"]) : undefined;
     if (
       tab === "industry" ||
       tab === "market" ||
       tab === "economy" ||
       tab === "featured"
     ) {
-      const sector = typeof s.sector === "string" ? s.sector : undefined;
-      return { tab, sector: sector as ResearchSearch["sector"] };
+      return { tab, sector, market };
     }
-    return { tab: "industry", sector: typeof s.sector === "string" ? s.sector as ResearchSearch["sector"] : undefined };
+    return { tab: "industry", sector, market };
   },
   head: () => ({
     meta: [{ title: "리서치 데스크 · Korea Equity Command Center" }],
@@ -31,7 +33,8 @@ export const Route = createFileRoute("/research")({
 });
 
 function ResearchPage() {
-  const { tab, sector } = Route.useSearch();
+  const { tab, sector, market } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { data, isLoading, isError, dataUpdatedAt } = useResearchDesk();
 
   return (
@@ -41,9 +44,13 @@ function ResearchPage() {
           <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
             리서치 데스크
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground max-w-2xl">
-            산업·시황·전략·경제 리포트를 한 곳에서 탐색합니다.
-            핵심요약을 먼저 읽고 산업·기간·증권사·키워드로 즉시 좁힐 수 있습니다.
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            한국 주식은 산업·시황·경제 리포트, 미국 주식은 월가·투자은행이 공개한 등급과 기사입니다.
+            공식 SEC·연준 원문은{" "}
+            <Link to="/us-research" className="text-primary underline">
+              Research
+            </Link>
+            에 있습니다.
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -83,6 +90,15 @@ function ResearchPage() {
         loading={isLoading}
         defaultTab={tab ?? "industry"}
         defaultSector={sector}
+        defaultMarket={market === "us" ? "US" : "KR"}
+        onMarketChange={(next) => {
+          void navigate({
+            search: (prev) => ({
+              ...prev,
+              market: next === "US" ? "us" : "kr",
+            }),
+          });
+        }}
         showHeader={false}
       />
     </div>

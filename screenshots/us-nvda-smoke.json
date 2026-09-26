@@ -1,0 +1,39 @@
+{
+  "url": "http://127.0.0.1:8080/us/NVDA",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "NVDA · 미국 주식",
+      "hasCanvas": true,
+      "bodyTextLen": 1251,
+      "bodyTextHash": "ae5db712e1bb3cacdd37585eeeafc37ded8c5aa65a36a2326a09343797ee8789",
+      "bodyTextPrefix": "마감 스냅샷(네이버) 코스피 7,080.92 +63.01 (+0.90%) 코스닥 844.48 +10.1 (+1.21",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/us-nvda-smoke.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "NVDA · 미국 주식",
+      "hasCanvas": true,
+      "bodyTextLen": 883,
+      "bodyTextHash": "045f4eb652d115dab27a1ffb6657c79ab6a1c1b7b69e2802a0316af772a2f0f2",
+      "bodyTextPrefix": "KX Equity COMMAND 마감 스냅샷(네이버) 코스피 7,080.92 +63.01 (+0.90%) 코스닥 8",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/us-nvda-smoke-mobile.png"
+    }
+  },
+  "brandWarnings": [
+    "BRAND WARNING: this looks like a game/canvas app but /workspace/public/og.jpg is missing. Games and visually rich apps must ship a custom 1200x630 share card built from the app's own art — the default og.grok.me placeholder card is not acceptable for them. You are not done: open /workspace/.grok/skills/og/SKILL.md and finish the brand-asset pass.",
+    "BRAND WARNING: this looks like a game/canvas app but src/lib/og/site.json is missing \"type\": \"x:game\". X uses og:type=x:game to present the unfurl as a game card — set it in /workspace/src/lib/og/site.json per /workspace/.grok/skills/og/SKILL.md. Do not invent x:type or overload twitter:card as the game signal."
+  ],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/us-nvda-smoke.json"
+}

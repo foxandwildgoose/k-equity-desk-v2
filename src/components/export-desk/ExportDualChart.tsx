@@ -1,5 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ColorType, LineSeries, createChart } from "lightweight-charts";
+import { computeSeriesRangePosition } from "@/lib/chart-indicators";
+import { RangePositionStrip } from "@/components/stocks/RangePositionStrip";
 
 export type DualPoint = {
   time: string;
@@ -21,6 +23,25 @@ export function ExportDualChart({
   bColor?: string;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
+
+  const aStats = useMemo(
+    () =>
+      computeSeriesRangePosition(
+        data
+          .filter((d) => d.a != null && Number.isFinite(d.a))
+          .map((d) => ({ value: d.a as number, date: d.time })),
+      ),
+    [data],
+  );
+  const bStats = useMemo(
+    () =>
+      computeSeriesRangePosition(
+        data
+          .filter((d) => d.b != null && Number.isFinite(d.b))
+          .map((d) => ({ value: d.b as number, date: d.time })),
+      ),
+    [data],
+  );
 
   useEffect(() => {
     const el = elRef.current;
@@ -81,7 +102,21 @@ export function ExportDualChart({
     );
   }
 
-  return <div ref={elRef} className="h-[380px] w-full min-h-[380px]" />;
+  return (
+    <div>
+      <RangePositionStrip
+        stats={aStats}
+        compact
+        caption={`${aName} · 현재값 기준 구간 고저 · 최근 고/저는 확인된 스윙.`}
+      />
+      <RangePositionStrip
+        stats={bStats}
+        compact
+        caption={`${bName} · 현재값 기준 구간 고저 · 최근 고/저는 확인된 스윙.`}
+      />
+      <div ref={elRef} className="h-[380px] w-full min-h-[380px]" />
+    </div>
+  );
 }
 
 function toDay(period: string): string {

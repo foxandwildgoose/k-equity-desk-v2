@@ -34,3 +34,21 @@ test("numeric 200 theme keyword is name-only (not years in descriptions)", () =>
   assert.match(src, /keyword === "200"/);
   assert.match(src, /themeKeywordHits/);
 });
+
+test("issuer PDF weights are not replaced by a qty×price rescale", () => {
+  assert.match(src, /chooseOfficialBasket/);
+  assert.match(src, /fetchIbkOfficialHoldings/);
+  assert.match(src, /fetchKodexOfficialHoldings/);
+  assert.match(src, /issuerHoldingsFamily/);
+  assert.match(src, /family === "plus" \? fetchPlusOfficialHoldings/);
+  assert.doesNotMatch(src, /krw \/ sum/);
+  assert.doesNotMatch(src, /cu-value/);
+});
+
+test("bundle does not rescale holdings to 100%", () => {
+  const bundle = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../lib/market-fns.ts"),
+    "utf8",
+  );
+  assert.doesNotMatch(bundle, /applyCuValueWeights/);
+});

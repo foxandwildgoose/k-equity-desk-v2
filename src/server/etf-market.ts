@@ -8,6 +8,16 @@ import { toReadableDoc } from "@/lib/readable-text";
 import { matchesSearchQuery, rankByQuery } from "@/lib/search-match";
 import { normalizeKrTicker } from "@/lib/infer-sector";
 import type { Market } from "@/data/types";
+import {
+  chooseOfficialBasket,
+  compareHoldingsByWeight,
+  issuerHoldingsFamily,
+  matchIbkProductId,
+  parseIbkPdfRows,
+  parseKodexPdfRows,
+  type IbkPdfItem,
+  type KodexPdfItem,
+} from "@/server/etf-holdings-parse";
 
 
 const UA =
@@ -717,9 +727,11 @@ export function filterEtfBucket(
 export type { Market };
 
 
-// ── Official CU + issuer PDF holdings (NEVER estimated weights) ────────────
-// Source waterfall: issuer daily PDF (PLUS) → WiseReport ETF_WEIGHT → Naver table
-// Missing official weight is shown as "—" — never qty×price estimates.
+// ── Official NAV weights only. Never qty × price rescaled to 100%. ─────────
+// A priced subset (equities) used to be stretched to 100% after bonds/cash
+// with no quote dropped out. That is not a NAV weight.
+// Waterfall: matching issuer PDF → WiseReport ETF_WEIGHT (only if sum ≈ 100)
+// → Naver table (only if sum ≈ 100). Incomplete baskets keep names and "—".
 
 export type EtfAssetClass =
   | "kr-equity"
@@ -788,7 +800,10 @@ const ETF_BRAND_RE =
   /^(KODEX|TIGER|PLUS|ACE|RISE|SOL|FOCUS|HANARO|KBSTAR|KOSEF|ARIRANG|TIMEFOLIO|WOORI|1Q|KIWOOM|WON|KOACT|TIME|KOACT)\b/i;
 
 export function looksKoreanEtfName(name: string): boolean {
-  return ETF_BRAND_RE.test(name.trim());
+  const n = name.trim();
+  if (ETF_BRAND_RE.test(n)) return true;
+  if (/상장지수/.test(n)) return true;
+  return /\bETF\b/i.test(n) && /[가-힣]/.test(n);
 }
 
 function isCashLike(name: string): boolean {
@@ -802,7 +817,7 @@ function isBondLike(name: string, isin?: string | null): boolean {
   if (looksKoreanEtfName(name)) return false;
   if (/선물/.test(name)) return false;
   if (isin && /^KR1/i.test(isin)) return true;
-  return /국고채권|국고\s*채권|통안채|회사채|특수채|금융채|물가채|국민주택|국고채(?!선물)/.test(
+  return /국고\d|통안\d{2,}|국고채권|국고\s*채권|통안채|회사채|특수채|금융채|물가채|국민주택|국고채(?!선물)/.test(
     name,
   );
 }
@@ -829,15 +844,6 @@ function looksOverseas(name: string): boolean {
 function asKrCode(v: unknown): string | null {
   const s = String(v ?? "").trim().toUpperCase();
   return /^[0-9A-Z]{6}$/.test(s) ? s : null;
-}
-
-function nameKey(name: string): string {
-  return name
-    .toUpperCase()
-    .replace(/국고채권/g, "국고채")
-    .replace(/국채/g, "국고채")
-    .replace(/CORPORATION|CORP\.?|INCORPORATED|\bINC\b|\bLTD\b|\bCO\b/g, "")
-    .replace(/[^A-Z0-9가-힣]/g, "");
 }
 
 function formatYmd(raw: string | null | undefined): string | null {
@@ -1350,15 +1356,6 @@ async function fetchPlusOfficialHoldings(ticker: string): Promise<{
   };
 }
 
-function indexCu(rows: CuRow[]): Map<string, CuRow> {
-  const map = new Map<string, CuRow>();
-  for (const r of rows) {
-    const k = nameKey(r.nameKo);
-    if (k && !map.has(k)) map.set(k, r);
-  }
-  return map;
-}
-
 function finalizeHolding(
   nameKo: string,
   opts: {
@@ -1404,103 +1401,213 @@ function finalizeHolding(
   };
 }
 
-async function buildEtfHoldings(code: string): Promise<{
+async function getJsonReferer<T>(url: string, referer: string): Promise<T> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 20_000);
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": UA,
+        Accept: "application/json,text/plain,*/*",
+        "Accept-Language": "ko-KR,ko;q=0.9",
+        Referer: referer,
+      },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return JSON.parse(await res.text()) as T;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function fetchEtfIdentity(code: string): Promise<{ name: string; issuer: string }> {
+  try {
+    const integ = await getJsonUtf8<{
+      stockName?: string;
+      etfKeyIndicator?: { issuerName?: string };
+    }>(`https://m.stock.naver.com/api/stock/${encodeURIComponent(code)}/integration`);
+    return {
+      name: String(integ.stockName ?? "").trim(),
+      issuer: String(integ.etfKeyIndicator?.issuerName ?? "").trim(),
+    };
+  } catch {
+    return { name: "", issuer: "" };
+  }
+}
+
+async function fetchIbkOfficialHoldings(etfName: string): Promise<{
+  rows: CuRow[];
+  asOf: string | null;
+  issuerUrl: string;
+} | null> {
+  const catalog = await getJsonUtf8<{
+    data?: { content?: { id: number; name: string }[]; baseDate?: string };
+  }>("https://www.ibkasset.com/api/etf");
+  const id = matchIbkProductId(etfName, catalog.data?.content ?? []);
+  if (id == null) return null;
+  const pdf = await getJsonUtf8<{
+    data?: { baseDate?: string; content?: IbkPdfItem[] };
+  }>(`https://www.ibkasset.com/api/etf/${id}/pdf?page=0&size=200`);
+  const asOf = pdf.data?.baseDate ?? catalog.data?.baseDate ?? null;
+  const rows = parseIbkPdfRows(pdf.data?.content ?? [], asOf);
+  if (!rows.length) return null;
+  return {
+    rows,
+    asOf,
+    issuerUrl: `https://www.ibkasset.com/etf/detail/${id}`,
+  };
+}
+
+const kodexCatalogCache: { at: number; map: Map<string, string> } = {
+  at: 0,
+  map: new Map(),
+};
+const KODEX_CATALOG_TTL_MS = 6 * 60 * 60_000;
+
+async function kodexFundId(ticker: string): Promise<string | null> {
+  const now = Date.now();
+  if (kodexCatalogCache.map.size > 0 && now - kodexCatalogCache.at < KODEX_CATALOG_TTL_MS) {
+    return kodexCatalogCache.map.get(ticker) ?? null;
+  }
+  const pageUrl = (page: number) =>
+    `https://www.samsungfund.com/api/v1/kodex/product.do?ordrColm=NAV&ordrSort=DESC&pageNo=${page}&pageRows=20&srchTerm=w`;
+  const first = await getJsonReferer<KodexListItem[]>(
+    pageUrl(1),
+    "https://www.samsungfund.com/etf/main.do",
+  );
+  const total = Number(first[0]?.totalCnt ?? first.length) || first.length;
+  const pages = Math.min(20, Math.max(1, Math.ceil(total / 20)));
+  const rest = await Promise.all(
+    Array.from({ length: pages - 1 }, (_, i) =>
+      getJsonReferer<KodexListItem[]>(pageUrl(i + 2), "https://www.samsungfund.com/etf/main.do").catch(
+        () => [] as KodexListItem[],
+      ),
+    ),
+  );
+  const map = new Map<string, string>();
+  for (const row of first.concat(...rest)) {
+    const code = String(row.stkTicker ?? "").trim().toUpperCase();
+    const fid = String(row.fId ?? "").trim();
+    if (code && fid) map.set(code, fid);
+  }
+  kodexCatalogCache.at = now;
+  kodexCatalogCache.map = map;
+  return map.get(ticker) ?? null;
+}
+
+type KodexListItem = { stkTicker?: string; fId?: string; totalCnt?: string };
+
+async function fetchKodexOfficialHoldings(ticker: string): Promise<{
+  rows: CuRow[];
+  asOf: string | null;
+  issuerUrl: string;
+} | null> {
+  const fid = await kodexFundId(ticker);
+  if (!fid) return null;
+  const pack = await getJsonReferer<{
+    pdf?: { gijunYMD?: string; list?: KodexPdfItem[] };
+  }>(
+    `https://www.samsungfund.com/api/v1/kodex/product/${encodeURIComponent(fid)}.do`,
+    `https://www.samsungfund.com/etf/product/view.do?id=${encodeURIComponent(fid)}`,
+  );
+  const asOf = formatYmd(pack.pdf?.gijunYMD ?? null);
+  const rows = parseKodexPdfRows(pack.pdf?.list ?? [], asOf);
+  if (!rows.length) return null;
+  return {
+    rows,
+    asOf,
+    issuerUrl: `https://www.samsungfund.com/etf/product/view.do?id=${encodeURIComponent(fid)}`,
+  };
+}
+
+type HoldingsBundle = {
   holdings: EtfHoldingRow[];
   asOf: string | null;
   source: string;
   sourceKind: "issuer-pdf" | "wisereport-cu" | "naver-table" | "none";
   officialCount: number;
-}> {
+  issuerUrl: string | null;
+};
+
+async function buildEtfHoldings(code: string): Promise<HoldingsBundle> {
   const c = normalizeEtfCode(code);
-  const [wisePack, naverRows, plusPack] = await Promise.all([
+  const [wisePack, identity] = await Promise.all([
     fetchWiseReportCu(c).catch(() => ({ rows: [] as CuRow[], asOf: null as string | null })),
+    fetchEtfIdentity(c),
+  ]);
+  const family = issuerHoldingsFamily(identity.name, identity.issuer);
+  const [naverRows, plusPack, ibkPack, kodexPack] = await Promise.all([
     fetchNaverEtfAssetTable(c).catch(() => [] as CuRow[]),
-    fetchPlusOfficialHoldings(c).catch(() => null),
+    family === "plus" ? fetchPlusOfficialHoldings(c).catch(() => null) : Promise.resolve(null),
+    family === "ibk" ? fetchIbkOfficialHoldings(identity.name).catch(() => null) : Promise.resolve(null),
+    family === "kodex" ? fetchKodexOfficialHoldings(c).catch(() => null) : Promise.resolve(null),
   ]);
 
-  const wiseIdx = indexCu(wisePack.rows);
-  const naverIdx = indexCu(naverRows);
+  const chosen = chooseOfficialBasket([
+    ...(kodexPack
+      ? [
+          {
+            rows: kodexPack.rows,
+            source: `삼성자산운용 KODEX 일별 PDF (${kodexPack.asOf ?? "기준일 확인"})`,
+            sourceKind: "issuer-pdf" as const,
+            priority: 100,
+            issuerUrl: kodexPack.issuerUrl,
+            asOf: kodexPack.asOf,
+          },
+        ]
+      : []),
+    ...(ibkPack
+      ? [
+          {
+            rows: ibkPack.rows,
+            source: `IBK자산운용 일별 PDF (${ibkPack.asOf ?? "기준일 확인"})`,
+            sourceKind: "issuer-pdf" as const,
+            priority: 100,
+            issuerUrl: ibkPack.issuerUrl,
+            asOf: ibkPack.asOf,
+          },
+        ]
+      : []),
+    ...(plusPack
+      ? [
+          {
+            rows: plusPack.rows,
+            source: `한화자산운용 PLUS 일별 구성종목 PDF (${plusPack.asOf ?? "기준일 확인"})`,
+            sourceKind: "issuer-pdf" as const,
+            priority: 90,
+            issuerUrl: `https://www.plusetf.co.kr/product/detail?n=${encodeURIComponent(plusPack.productId)}`,
+            asOf: plusPack.asOf,
+          },
+        ]
+      : []),
+    {
+      rows: wisePack.rows,
+      source: `WiseReport CU 공시 (KRX/운용사, ${wisePack.asOf ?? "기준일 확인"})`,
+      sourceKind: "wisereport-cu" as const,
+      priority: 50,
+      asOf: wisePack.asOf,
+    },
+    {
+      rows: naverRows,
+      source: "Naver Finance 구성종목 테이블",
+      sourceKind: "naver-table" as const,
+      priority: 10,
+      asOf: naverRows.find((r) => r.asOf)?.asOf ?? null,
+    },
+  ]);
 
-  const primary: CuRow[] = plusPack?.rows.length
-    ? plusPack.rows
-    : wisePack.rows.length
-      ? wisePack.rows
-      : naverRows;
-
-  const sourceKind: "issuer-pdf" | "wisereport-cu" | "naver-table" | "none" =
-    plusPack?.rows.length
-      ? "issuer-pdf"
-      : wisePack.rows.some((r) => r.weight != null)
-        ? "wisereport-cu"
-        : naverRows.some((r) => r.weight != null)
-          ? "naver-table"
-          : wisePack.rows.length || naverRows.length
-            ? "wisereport-cu"
-            : "none";
-
-  const asOf =
-    plusPack?.asOf ??
-    wisePack.asOf ??
-    naverRows.find((r) => r.asOf)?.asOf ??
-    null;
-
-  const source =
-    sourceKind === "issuer-pdf"
-      ? `한화자산운용 PLUS 일별 구성종목 PDF (${asOf ?? "기준일 확인"})`
-      : sourceKind === "naver-table"
-        ? `Naver Finance 구성종목 테이블 (${asOf ?? "기준일 확인"})`
-        : sourceKind === "wisereport-cu"
-          ? `WiseReport CU 공시 (KRX/운용사, ${asOf ?? "기준일 확인"})`
-          : "공식 편입내역 없음";
-
-  const merged: CuRow[] = primary.map((row) => {
-    const k = nameKey(row.nameKo);
-    const w = wiseIdx.get(k);
-    const n = naverIdx.get(k);
-    const weight =
-      row.weight != null
-        ? row.weight
-        : w?.weight != null
-          ? w.weight
-          : n?.weight != null
-            ? n.weight
-            : null;
-    return {
-      nameKo: row.nameKo,
-      weight,
-      quantity:
-        row.quantity != null && row.quantity !== 0
-          ? row.quantity
-          : w?.quantity != null && w.quantity !== 0
-            ? w.quantity
-            : n?.quantity ?? row.quantity ?? null,
-      asOf: row.asOf ?? w?.asOf ?? asOf,
-      code: row.code ?? n?.code ?? w?.code ?? null,
-      isin: row.isin ?? w?.isin ?? n?.isin ?? null,
-    };
-  });
-
-  // Keep unique WiseReport names that issuer PDF omitted (rare cash lines).
-  if (plusPack?.rows.length) {
-    const have = new Set(merged.map((r) => nameKey(r.nameKo)));
-    for (const extra of wisePack.rows) {
-      const k = nameKey(extra.nameKo);
-      if (!k || have.has(k)) continue;
-      if (isCashLike(extra.nameKo) && !(extra.quantity || extra.weight)) continue;
-      merged.push({
-        ...extra,
-        code: extra.code ?? naverIdx.get(k)?.code ?? null,
-      });
-      have.add(k);
-    }
-  }
-
-  const rankedIdx = merged
+  const asOf = chosen.asOf ?? wisePack.asOf;
+  const rankedIdx = chosen.rows
     .map((row, idx) => ({
       idx,
       w: row.weight ?? -1,
       qty: Math.abs(row.quantity ?? 0),
-      needs: !row.code && !isCashLike(row.nameKo) && !isBondLike(row.nameKo, row.isin) && !isFutureLike(row.nameKo, row.isin),
+      needs:
+        !row.code &&
+        !isCashLike(row.nameKo) &&
+        !isBondLike(row.nameKo, row.isin) &&
+        !isFutureLike(row.nameKo, row.isin),
     }))
     .sort((a, b) => b.w - a.w || b.qty - a.qty);
   const resolveIdx = new Set(
@@ -1508,8 +1615,8 @@ async function buildEtfHoldings(code: string): Promise<{
   );
 
   const holdings: EtfHoldingRow[] = [];
-  for (let i = 0; i < merged.length; i += 8) {
-    const batch = merged.slice(i, i + 8);
+  for (let i = 0; i < chosen.rows.length; i += 8) {
+    const batch = chosen.rows.slice(i, i + 8);
     const resolved = await Promise.all(
       batch.map(async (row, j) => {
         const idx = i + j;
@@ -1527,7 +1634,7 @@ async function buildEtfHoldings(code: string): Promise<{
           };
         }
         return finalizeHolding(row.nameKo, {
-          weight: row.weight,
+          weight: chosen.weightsPublished ? row.weight : null,
           quantity: row.quantity,
           asOf: row.asOf ?? asOf,
           code: row.code,
@@ -1539,31 +1646,19 @@ async function buildEtfHoldings(code: string): Promise<{
     holdings.push(...resolved);
   }
 
-  holdings.sort((a, b) => {
-    const aw = a.weight;
-    const bw = b.weight;
-    if (aw == null && bw == null) return (b.quantity ?? 0) - (a.quantity ?? 0);
-    if (aw == null) return 1;
-    if (bw == null) return -1;
-    return bw - aw;
-  });
+  holdings.sort(compareHoldingsByWeight);
 
   return {
     holdings,
     asOf,
-    source,
-    sourceKind,
+    source: chosen.source,
+    sourceKind: chosen.sourceKind,
     officialCount: holdings.filter((h) => h.weightSource === "official").length,
+    issuerUrl: chosen.issuerUrl,
   };
 }
 
-export async function fetchEtfHoldings(code: string): Promise<{
-  holdings: EtfHoldingRow[];
-  asOf: string | null;
-  source: string;
-  sourceKind: "issuer-pdf" | "wisereport-cu" | "naver-table" | "none";
-  officialCount: number;
-}> {
+export async function fetchEtfHoldings(code: string): Promise<HoldingsBundle> {
   const c = normalizeEtfCode(code);
   const now = Date.now();
   const hit = holdingsCache.get(c);

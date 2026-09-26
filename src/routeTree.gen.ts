@@ -15,12 +15,16 @@ import { Route as EtfsRouteImport } from './routes/etfs'
 import { Route as ExportDeskRouteImport } from './routes/export-desk'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as UsLinkRouteImport } from './routes/us-link'
+import { Route as UsResearchRouteImport } from './routes/us-research'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
 import { Route as ApiMarketStreamRouteImport } from './routes/api.market-stream'
 import { Route as EtfsIndexRouteImport } from './routes/etfs.index'
 import { Route as EtfsCodeRouteImport } from './routes/etfs.$code'
 import { Route as IndustrySectorIdRouteImport } from './routes/industry.$sectorId'
 import { Route as StockTickerRouteImport } from './routes/stock.$ticker'
+import { Route as UsResearchIndexRouteImport } from './routes/us-research.index'
+import { Route as UsResearchReportIdRouteImport } from './routes/us-research.$reportId'
+import { Route as UsSymbolRouteImport } from './routes/us.$symbol'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -50,6 +54,11 @@ const ResearchRoute = ResearchRouteImport.update({
 const UsLinkRoute = UsLinkRouteImport.update({
   id: '/us-link',
   path: '/us-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsResearchRoute = UsResearchRouteImport.update({
+  id: '/us-research',
+  path: '/us-research',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WatchlistRoute = WatchlistRouteImport.update({
@@ -82,6 +91,21 @@ const StockTickerRoute = StockTickerRouteImport.update({
   path: '/stock/$ticker',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UsResearchIndexRoute = UsResearchIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => UsResearchRoute,
+} as any)
+const UsResearchReportIdRoute = UsResearchReportIdRouteImport.update({
+  id: '/$reportId',
+  path: '/$reportId',
+  getParentRoute: () => UsResearchRoute,
+} as any)
+const UsSymbolRoute = UsSymbolRouteImport.update({
+  id: '/us/$symbol',
+  path: '/us/$symbol',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -90,12 +114,16 @@ export interface FileRoutesByFullPath {
   '/export-desk': typeof ExportDeskRoute
   '/research': typeof ResearchRoute
   '/us-link': typeof UsLinkRoute
+  '/us-research': typeof UsResearchRouteWithChildren
   '/watchlist': typeof WatchlistRoute
   '/api/market-stream': typeof ApiMarketStreamRoute
   '/etfs/$code': typeof EtfsCodeRoute
   '/industry/$sectorId': typeof IndustrySectorIdRoute
   '/stock/$ticker': typeof StockTickerRoute
+  '/us-research/$reportId': typeof UsResearchReportIdRoute
+  '/us/$symbol': typeof UsSymbolRoute
   '/etfs/': typeof EtfsIndexRoute
+  '/us-research/': typeof UsResearchIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -108,7 +136,10 @@ export interface FileRoutesByTo {
   '/etfs/$code': typeof EtfsCodeRoute
   '/industry/$sectorId': typeof IndustrySectorIdRoute
   '/stock/$ticker': typeof StockTickerRoute
+  '/us-research/$reportId': typeof UsResearchReportIdRoute
+  '/us/$symbol': typeof UsSymbolRoute
   '/etfs': typeof EtfsIndexRoute
+  '/us-research': typeof UsResearchIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -118,12 +149,16 @@ export interface FileRoutesById {
   '/export-desk': typeof ExportDeskRoute
   '/research': typeof ResearchRoute
   '/us-link': typeof UsLinkRoute
+  '/us-research': typeof UsResearchRouteWithChildren
   '/watchlist': typeof WatchlistRoute
   '/api/market-stream': typeof ApiMarketStreamRoute
   '/etfs/$code': typeof EtfsCodeRoute
   '/industry/$sectorId': typeof IndustrySectorIdRoute
   '/stock/$ticker': typeof StockTickerRoute
+  '/us-research/$reportId': typeof UsResearchReportIdRoute
+  '/us/$symbol': typeof UsSymbolRoute
   '/etfs/': typeof EtfsIndexRoute
+  '/us-research/': typeof UsResearchIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -134,12 +169,16 @@ export interface FileRouteTypes {
     | '/export-desk'
     | '/research'
     | '/us-link'
+    | '/us-research'
     | '/watchlist'
     | '/api/market-stream'
     | '/etfs/$code'
     | '/industry/$sectorId'
     | '/stock/$ticker'
+    | '/us-research/$reportId'
+    | '/us/$symbol'
     | '/etfs/'
+    | '/us-research/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -152,7 +191,10 @@ export interface FileRouteTypes {
     | '/etfs/$code'
     | '/industry/$sectorId'
     | '/stock/$ticker'
+    | '/us-research/$reportId'
+    | '/us/$symbol'
     | '/etfs'
+    | '/us-research'
   id:
     | '__root__'
     | '/'
@@ -161,12 +203,16 @@ export interface FileRouteTypes {
     | '/export-desk'
     | '/research'
     | '/us-link'
+    | '/us-research'
     | '/watchlist'
     | '/api/market-stream'
     | '/etfs/$code'
     | '/industry/$sectorId'
     | '/stock/$ticker'
+    | '/us-research/$reportId'
+    | '/us/$symbol'
     | '/etfs/'
+    | '/us-research/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -176,10 +222,12 @@ export interface RootRouteChildren {
   ExportDeskRoute: typeof ExportDeskRoute
   ResearchRoute: typeof ResearchRoute
   UsLinkRoute: typeof UsLinkRoute
+  UsResearchRoute: typeof UsResearchRouteWithChildren
   WatchlistRoute: typeof WatchlistRoute
   ApiMarketStreamRoute: typeof ApiMarketStreamRoute
   IndustrySectorIdRoute: typeof IndustrySectorIdRoute
   StockTickerRoute: typeof StockTickerRoute
+  UsSymbolRoute: typeof UsSymbolRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -226,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UsLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/us-research': {
+      id: '/us-research'
+      path: '/us-research'
+      fullPath: '/us-research'
+      preLoaderRoute: typeof UsResearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/watchlist': {
       id: '/watchlist'
       path: '/watchlist'
@@ -268,6 +323,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StockTickerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/us-research/': {
+      id: '/us-research/'
+      path: '/'
+      fullPath: '/us-research/'
+      preLoaderRoute: typeof UsResearchIndexRouteImport
+      parentRoute: typeof UsResearchRoute
+    }
+    '/us-research/$reportId': {
+      id: '/us-research/$reportId'
+      path: '/$reportId'
+      fullPath: '/us-research/$reportId'
+      preLoaderRoute: typeof UsResearchReportIdRouteImport
+      parentRoute: typeof UsResearchRoute
+    }
+    '/us/$symbol': {
+      id: '/us/$symbol'
+      path: '/us/$symbol'
+      fullPath: '/us/$symbol'
+      preLoaderRoute: typeof UsSymbolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -283,6 +359,20 @@ const EtfsRouteChildren: EtfsRouteChildren = {
 
 const EtfsRouteWithChildren = EtfsRoute._addFileChildren(EtfsRouteChildren)
 
+interface UsResearchRouteChildren {
+  UsResearchReportIdRoute: typeof UsResearchReportIdRoute
+  UsResearchIndexRoute: typeof UsResearchIndexRoute
+}
+
+const UsResearchRouteChildren: UsResearchRouteChildren = {
+  UsResearchReportIdRoute: UsResearchReportIdRoute,
+  UsResearchIndexRoute: UsResearchIndexRoute,
+}
+
+const UsResearchRouteWithChildren = UsResearchRoute._addFileChildren(
+  UsResearchRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DisclosuresRoute: DisclosuresRoute,
@@ -290,10 +380,12 @@ const rootRouteChildren: RootRouteChildren = {
   ExportDeskRoute: ExportDeskRoute,
   ResearchRoute: ResearchRoute,
   UsLinkRoute: UsLinkRoute,
+  UsResearchRoute: UsResearchRouteWithChildren,
   WatchlistRoute: WatchlistRoute,
   ApiMarketStreamRoute: ApiMarketStreamRoute,
   IndustrySectorIdRoute: IndustrySectorIdRoute,
   StockTickerRoute: StockTickerRoute,
+  UsSymbolRoute: UsSymbolRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

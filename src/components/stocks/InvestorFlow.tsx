@@ -13,6 +13,8 @@ import {
   type MouseEventParams,
   type LogicalRange,
 } from "lightweight-charts";
+import { computeRangePosition } from "@/lib/chart-indicators";
+import { RangePositionStrip } from "@/components/stocks/RangePositionStrip";
 import {
   Users,
   Building2,
@@ -285,6 +287,18 @@ export function InvestorFlow({
 
   const last = days[days.length - 1];
   const display = hover ?? last;
+
+  const rangeStats = useMemo(() => {
+    const bars = slice
+      .filter((d) => d.close > 0)
+      .map((d) => ({
+        high: d.close,
+        low: d.close,
+        close: d.close,
+        date: d.date,
+      }));
+    return computeRangePosition(bars);
+  }, [slice]);
 
   const smartMoney = useMemo(
     () =>
@@ -743,6 +757,12 @@ export function InvestorFlow({
               </div>
             </div>
           </div>
+
+          <RangePositionStrip
+            stats={rangeStats}
+            compact
+            caption="선택 구간 종가 기준 · 기간 고/저는 절대 최고·최저, 최근 고/저는 확인된 스윙."
+          />
 
           {/* Interactive chart */}
           <div className="relative" style={{ height: chartH }}>

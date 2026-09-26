@@ -6,6 +6,7 @@ import { htmlToReadableText } from "@/lib/readable-text";
  */
 import { UNIVERSE, type UniverseItem } from "@/data/universe";
 import { detectKrMarket, normalizeKrTicker, isKrTicker, inferSectorId } from "@/lib/infer-sector";
+import { yahooUsSymbol } from "@/lib/valuation-series";
 import { classifyResearchSectors } from "@/data/research-taxonomy";
 import { buildResearchExecutiveSummary } from "@/lib/research-utils";
 
@@ -215,23 +216,26 @@ function formatYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function sma(closes: number[], end: number, period: number): number | undefined {
+function sma(closes: number[], end: number, period: number, round = true): number | undefined {
   if (end + 1 < period) return undefined;
   let sum = 0;
   for (let i = end - period + 1; i <= end; i++) sum += closes[i]!;
-  return Math.round(sum / period);
+  const value = sum / period;
+  return round ? Math.round(value) : value;
 }
 
 function withMas(
   bars: Omit<OhlcBar, "ma5" | "ma20" | "ma60" | "ma120">[],
+  opts?: { round?: boolean },
 ): OhlcBar[] {
+  const round = opts?.round !== false;
   const closes = bars.map((b) => b.close);
   return bars.map((bar, i) => ({
     ...bar,
-    ma5: sma(closes, i, 5),
-    ma20: sma(closes, i, 20),
-    ma60: sma(closes, i, 60),
-    ma120: sma(closes, i, 120),
+    ma5: sma(closes, i, 5, round),
+    ma20: sma(closes, i, 20, round),
+    ma60: sma(closes, i, 60, round),
+    ma120: sma(closes, i, 120, round),
   }));
 }
 
@@ -749,17 +753,179 @@ async function fetchMinuteOhlc(
   return { bars: withMas(grouped), source };
 }
 
+type YahooChartResult = {
+  timestamp?: number[];
+  indicators?: {
+    quote?: {
+      open?: (number | null)[];
+      high?: (number | null)[];
+      low?: (number | null)[];
+      close?: (number | null)[];
+      volume?: (number | null)[];
+    }[];
+    adjclose?: { adjclose?: (number | null)[] }[];
+  };
+};
+
+function wallClock(tsSec: number, withTime: boolean): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    ...(withTime ? { hour: "2-digit" as const, minute: "2-digit" as const } : {}),
+  }).formatToParts(new Date(tsSec * 1000));
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const ymd = `${g("year")}-${g("month")}-${g("day")}`;
+  if (!withTime) return ymd;
+  const hour = g("hour") === "24" ? "00" : g("hour");
+  return `${ymd} ${hour}:${g("minute")}`;
+}
+
+function roundPx(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
+function parseUsYahooBars(
+  result: YahooChartResult,
+  withTime: boolean,
+): Omit<OhlcBar, "ma5" | "ma20" | "ma60" | "ma120">[] {
+  const ts = result.timestamp ?? [];
+  const q = result.indicators?.quote?.[0];
+  if (!q || !ts.length) return [];
+  const adj = result.indicators?.adjclose?.[0]?.adjclose ?? [];
+  const raw: Omit<OhlcBar, "ma5" | "ma20" | "ma60" | "ma120">[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < ts.length; i++) {
+    const o = q.open?.[i];
+    const h = q.high?.[i];
+    const l = q.low?.[i];
+    const c = q.close?.[i];
+    if (o == null || h == null || l == null || c == null) continue;
+    if (!(c > 0)) continue;
+    const stamp = ts[i];
+    if (typeof stamp !== "number") continue;
+    const factor = adj[i] != null && adj[i]! > 0 ? adj[i]! / c : 1;
+    const open = roundPx(o * factor);
+    const high = roundPx(Math.max(h, o, c) * factor);
+    const low = roundPx(Math.min(l, o, c) * factor);
+    const close = roundPx(c * factor);
+    if (!(close > 0) || !(high > 0) || !(low > 0)) continue;
+    const date = wallClock(stamp, withTime);
+    if (!date || seen.has(date)) continue;
+    seen.add(date);
+    raw.push({
+      date,
+      label: withTime ? date.slice(5) : date.slice(5).replace("-", "/"),
+      open,
+      high: Math.max(high, open, close),
+      low: Math.min(low, open, close),
+      close,
+      volume: Math.round(q.volume?.[i] ?? 0),
+      bullish: close >= open,
+    });
+  }
+  return raw;
+}
+
+async function fetchYahooChart(symbol: string, interval: string, range: string): Promise<YahooChartResult | null> {
+  for (const host of ["query1", "query2"]) {
+    try {
+      const data = await getJson<{ chart?: { result?: YahooChartResult[] } }>(
+        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includeAdjustedClose=true&includePrePost=false`,
+      );
+      const result = data.chart?.result?.[0];
+      if (result?.timestamp?.length) return result;
+    } catch {
+      /* next host */
+    }
+  }
+  return null;
+}
+
+/** Split-adjusted US OHLC. Prices stay in dollars (not rounded to a won). */
+async function fetchUsOhlc(opts: {
+  code: string;
+  interval: ChartInterval;
+  minuteSize?: MinuteSize;
+  range?: string;
+}): Promise<{ bars: OhlcBar[]; source: string }> {
+  const symbol = yahooUsSymbol(opts.code);
+  if (!symbol) return { bars: [], source: "us-invalid" };
+  const interval = opts.interval;
+  let yahooInterval = "1d";
+  let range = opts.range ?? "5y";
+  let bucket = 1;
+  if (interval === "minute") {
+    const plan = yahooMinutePlan(opts.minuteSize ?? 5, opts.range);
+    yahooInterval = plan.yahooInterval;
+    range = plan.range;
+    bucket = plan.bucket;
+  } else if (interval === "week") {
+    yahooInterval = "1wk";
+    range = opts.range ?? "10y";
+  } else if (interval === "month" || interval === "year") {
+    yahooInterval = interval === "year" ? "3mo" : "1mo";
+    range = opts.range ?? "max";
+  } else {
+    yahooInterval = "1d";
+    range = opts.range ?? "5y";
+  }
+
+  const result = await fetchYahooChart(symbol, yahooInterval, range);
+  if (!result) return { bars: [], source: "us-yahoo-empty" };
+  let raw = parseUsYahooBars(result, interval === "minute");
+  if (interval === "minute" && bucket > 1) raw = bucketMinuteBars(raw, bucket);
+  if (!raw.length) return { bars: [], source: "us-ohlc-empty" };
+
+  if (interval === "year") {
+    const byYear = new Map<string, typeof raw>();
+    for (const bar of raw) {
+      const y = bar.date.slice(0, 4);
+      const list = byYear.get(y) ?? [];
+      list.push(bar);
+      byYear.set(y, list);
+    }
+    const yearly: typeof raw = [];
+    for (const [y, list] of [...byYear.entries()].sort()) {
+      const first = list[0]!;
+      const last = list[list.length - 1]!;
+      yearly.push({
+        date: `${y}-01-01`,
+        label: y,
+        open: first.open,
+        high: Math.max(...list.map((x) => x.high)),
+        low: Math.min(...list.map((x) => x.low)),
+        close: last.close,
+        volume: list.reduce((s, x) => s + x.volume, 0),
+        bullish: last.close >= first.open,
+      });
+    }
+    raw = yearly;
+  }
+
+  return { bars: withMas(raw, { round: false }), source: `yahoo-us-${symbol}-${yahooInterval}` };
+}
 
 // ── OHLC ────────────────────────────────────────────────────────────────
 
 export async function fetchOhlc(opts: {
   code: string;
-  market: "KOSPI" | "KOSDAQ";
+  market: "KOSPI" | "KOSDAQ" | "US";
   interval: ChartInterval;
   minuteSize?: MinuteSize;
   range?: string;
 }): Promise<{ bars: OhlcBar[]; source: string }> {
   const { code, market, interval } = opts;
+  if (market === "US") {
+    return fetchUsOhlc({
+      code,
+      interval,
+      minuteSize: opts.minuteSize,
+      range: opts.range,
+    });
+  }
 
   if (interval === "minute") {
     return fetchMinuteOhlc(code, market, opts.minuteSize ?? 5, opts.range);

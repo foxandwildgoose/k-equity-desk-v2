@@ -1,7 +1,7 @@
 import { v as Link } from "../_libs/@tanstack/react-router+[...].mjs";
 import { s as require_jsx_runtime } from "../_libs/@radix-ui/react-collection+[...].mjs";
 import { et as ArrowRight } from "../_libs/lucide-react.mjs";
-import { J as cn } from "./router-B3Rw4zmt.mjs";
+import { it as cn } from "./router-BWCKniEU.mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/DeskLayout-D7SSbRkS.js
 var import_jsx_runtime = require_jsx_runtime();
 function Panel({ title, kicker, hint, href, hrefLabel = "전체", tone, children, className }) {

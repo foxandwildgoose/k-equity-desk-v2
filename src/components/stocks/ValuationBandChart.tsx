@@ -3,6 +3,8 @@ import type { OhlcBar, StockValuation } from "@/server/naver-market";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useChartData } from "@/lib/use-market";
+import { computeRangePosition } from "@/lib/chart-indicators";
+import { RangePositionStrip } from "@/components/stocks/RangePositionStrip";
 import {
   createChart,
   LineSeries,
@@ -297,6 +299,11 @@ export function ValuationBandChart({
   const vsHi =
     upPrice && lastClose ? ((lastClose / upPrice - 1) * 100) : null;
 
+  const rangeStats = useMemo(
+    () => computeRangePosition(bars, { close: lastClose }),
+    [bars, lastClose],
+  );
+
   return (
     <section className="desk-card desk-card-gold overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-3 py-2.5 md:px-4">
@@ -456,6 +463,12 @@ export function ValuationBandChart({
           )}
         </div>
       )}
+
+      <RangePositionStrip
+        stats={rangeStats}
+        compact
+        caption="주가 차트 구간 기준 · 기간 고/저는 절대 최고·최저, 최근 고/저는 확인된 스윙."
+      />
 
       <div className="relative">
         <div ref={wrapRef} className="h-[300px] md:h-[340px] w-full" />

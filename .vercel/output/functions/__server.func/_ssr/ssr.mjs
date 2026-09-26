@@ -89,7 +89,7 @@ var HEADERS = { TSS_SHELL: "X-TSS_SHELL" };
 * the dev styles URL for route-scoped CSS collection.
 */
 async function getStartManifest(matchedRoutes) {
-	const { tsrStartManifest } = await import("../_tanstack-start-manifest_v-Bf4HyVAv.mjs");
+	const { tsrStartManifest } = await import("../_tanstack-start-manifest_v-CCjjivAW.mjs");
 	const startManifest = tsrStartManifest();
 	let routes = startManifest.routes;
 	routes[rootRouteId];
@@ -111,11 +111,15 @@ async function getStartManifest(matchedRoutes) {
 var manifest = {
 	"1107098a65d0f5af81534960a39838855f849486e0bdbe3da960184f336bc8d6": {
 		functionName: "getDisclosureDetail_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
+	},
+	"162a03eb73c1068bbf58ffcf83b1f34a32ae0d5d303189029ac364c8919906da": {
+		functionName: "getUsOfficialReport_createServerFn_handler",
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"17f63d91d396ca6ee11ba0a10df4a4f009fc0642e7b8cb95c41fffb596bcb555": {
 		functionName: "getKospiCapQuotes_createServerFn_handler",
-		importer: () => import("./export-desk-CIJJ-Irh.mjs")
+		importer: () => import("./export-desk-CGUMDCi5.mjs")
 	},
 	"1a24cb119da9e6a2541edadee6c36926c6686f6648440daee51b9dd5311a79db": {
 		functionName: "getSecuritySearch_createServerFn_handler",
@@ -123,75 +127,95 @@ var manifest = {
 	},
 	"1f550e4983ce6593c02d459289b03dbcfd2ca8e5672e4ed84b0ed31936d8a6a3": {
 		functionName: "getEtfMarket_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"20ea6d9740e1873a46832e044191aca791a44d54741a82c0515cc1024ed4809f": {
 		functionName: "getQuotesByCodes_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"22317702d830bba22c18bf55ff9aebcad93b94248c8d7055bab2fcde519e8e40": {
 		functionName: "getMarketQuotes_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"2741e40ab8821427d8bcf896deb105a7fc19dc0babb8b6aaa02a412130fbdcb1": {
 		functionName: "getChartData_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"53180af1c07730e82baef51d15e76df4b7cb48694d71483a894406251d5d9db7": {
 		functionName: "getEtfBundle_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"6281abd8e0ea4fcb2e73102513eb9f1836f4cfa213660d96e1f42e5efd6335e4": {
 		functionName: "getKrxDisclosureDesk_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
+	},
+	"62954cbe6ed624015e6ae33cf86fcecc6945b9bf459f8abc95ef84f3c7302614": {
+		functionName: "getUsOfficialCompany_createServerFn_handler",
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"7f1eda26b4ed9a12a5244298a15abb0733dcd49bd061fc8a0accfab120cc103f": {
 		functionName: "getResearchDesk_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"802cd5e425d9403328a1ed61e59ab15c981ad90ac5f900cb4fd2f1c9312299e9": {
 		functionName: "getExportMacro_createServerFn_handler",
-		importer: () => import("./export-desk-CIJJ-Irh.mjs")
+		importer: () => import("./export-desk-CGUMDCi5.mjs")
 	},
 	"8c045cd3627c9fc5450292feee0cc4b9e0e260d881148e395524e48ff487291d": {
 		functionName: "getIndustryMonthlyPrices_createServerFn_handler",
-		importer: () => import("./export-desk-CIJJ-Irh.mjs")
+		importer: () => import("./export-desk-CGUMDCi5.mjs")
 	},
 	"958e0e687e7dc66dfb3df70d2a767358d6db1234c44cbf9a9b449ac225dd3e84": {
 		functionName: "getEtfListingNews_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"9e6270a121f70ddeb2c53fa068debfb416fa043638edf949510802e4c35a32b9": {
 		functionName: "getScanDisclosures_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
+	},
+	"a398b94dab0e26b2679346ed1504000b9dd7747f368736a3f1c1b30ca0efc3db": {
+		functionName: "getUsOfficialUniverse_createServerFn_handler",
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
+	},
+	"ab33f5943578ad6a4c2d3b553d37dde601acd42bf9821710ba94b3b49b64bff9": {
+		functionName: "getValuationSeries_createServerFn_handler",
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
+	},
+	"c896e3ab110f1205a7679a339a05886599385517722877e90211332040abcd2b": {
+		functionName: "getUsStreet_createServerFn_handler",
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"d489b0d52357f9a21a93e40ac58eb85f3ba93f98f375bba794822788e13718c6": {
 		functionName: "getLiveTradeBundle_createServerFn_handler",
-		importer: () => import("./export-live-Dn4mq2tt.mjs")
+		importer: () => import("./export-live-DMBlEyD1.mjs")
 	},
 	"e9288d88bf1ce8e8e4c2f168f1315f422eb2b842f1836dbace9e44e9e3397186": {
 		functionName: "getStockBundle_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"ec3f9140d0f0bf9b88ddf1a2d851c83947f39c599f5e8d3b49ee04869396705b": {
 		functionName: "getResearchPdf_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"f154a3830a7fa769b3681442c51672d43b9a273e148420e7f4105ddbb9cec5a6": {
 		functionName: "getMarketIndices_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"f52dc16aa5a4dbef8932d53da7a78136dd3815103ce8fd839ab0848dc7c35b11": {
 		functionName: "getUsLinkDesk_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"f6e1258df5ed0a87b70ff13bb9ab8a207cc972029afee820bfc15f9d9ec58fa9": {
 		functionName: "getStockDisclosures_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
+	},
+	"f9e5b26032bcb7dd5ceae5cf107843715380b06b12481625af8fab1a61d3c6c2": {
+		functionName: "getUsOfficialPolicy_createServerFn_handler",
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	},
 	"fa901486ee32fe838f7ec1e2616b9ca96d283759d098635f15bc3ca29270f2b4": {
 		functionName: "getIndustryResearch_createServerFn_handler",
-		importer: () => import("./market-fns-CayTJiKU.mjs")
+		importer: () => import("./market-fns-Cw0KBpc6.mjs")
 	}
 };
 async function getServerFnById(id, access) {
@@ -1461,7 +1485,7 @@ var getBaseManifest = getProdBaseManifest;
 var createEarlyHintsForRequest = createEarlyHintsCollector;
 async function loadEntries() {
 	const [routerEntry, startEntry, pluginAdapters] = await Promise.all([
-		import("./router-B3Rw4zmt.mjs").then((n) => n.t),
+		import("./router-BWCKniEU.mjs").then((n) => n.t),
 		import("./start-5Z2QO8AU.mjs"),
 		import("./empty-plugin-adapters-D9UWiqvJ.mjs")
 	]);

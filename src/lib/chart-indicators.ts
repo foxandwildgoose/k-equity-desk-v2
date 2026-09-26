@@ -125,6 +125,74 @@ export function macd(
   return { macd: macdLine, signal: signalLine, hist };
 }
 
+export type MacdCrossKind = "golden" | "dead";
+
+export type MacdCross = {
+  kind: MacdCrossKind;
+  label: string;
+  index: number;
+  macd: number;
+  signal: number;
+  /** MACD 값이 0 아래면 반등형, 위면 추세 지속형으로 읽습니다. */
+  belowZero: boolean;
+};
+
+/**
+ * MACD(12,26,9) line crossing the signal line.
+ * Golden: previous bar MACD ≤ signal and this bar MACD > signal.
+ * Dead: the opposite cross. Ties on the previous bar still count as a cross
+ * when the current bar separates. The latest golden and latest dead inside
+ * `maxAge` are kept. An unfinished bar is included because the cross is on
+ * the close, not a future pivot.
+ */
+export function detectMacdCrosses(
+  closes: number[],
+  opts?: { fast?: number; slow?: number; signal?: number; maxAge?: number },
+): MacdCross[] {
+  const fast = opts?.fast ?? 12;
+  const slow = opts?.slow ?? 26;
+  const signalPeriod = opts?.signal ?? 9;
+  const maxAge = opts?.maxAge ?? 40;
+  if (closes.length < slow + signalPeriod) return [];
+  const series = macd(closes, fast, slow, signalPeriod);
+  let golden: MacdCross | null = null;
+  let dead: MacdCross | null = null;
+  for (let i = 1; i < closes.length; i++) {
+    const prevMacd = series.macd[i - 1];
+    const macdNow = series.macd[i];
+    const prevSignal = series.signal[i - 1];
+    const signalNow = series.signal[i];
+    if (prevMacd == null || macdNow == null || prevSignal == null || signalNow == null) continue;
+    const prevDiff = prevMacd - prevSignal;
+    const nowDiff = macdNow - signalNow;
+    if (prevDiff <= 0 && nowDiff > 0) {
+      golden = {
+        kind: "golden",
+        label: macdNow < 0 ? "MACD 골든크로스 · 0선 아래" : "MACD 골든크로스 · 0선 위",
+        index: i,
+        macd: macdNow,
+        signal: signalNow,
+        belowZero: macdNow < 0,
+      };
+    } else if (prevDiff >= 0 && nowDiff < 0) {
+      dead = {
+        kind: "dead",
+        label: macdNow > 0 ? "MACD 데드크로스 · 0선 위" : "MACD 데드크로스 · 0선 아래",
+        index: i,
+        macd: macdNow,
+        signal: signalNow,
+        belowZero: macdNow < 0,
+      };
+    }
+  }
+  const last = closes.length - 1;
+  const out: MacdCross[] = [];
+  if (golden && last - golden.index <= maxAge) out.push(golden);
+  if (dead && last - dead.index <= maxAge) out.push(dead);
+  out.sort((a, b) => b.index - a.index);
+  return out;
+}
+
 /**
  * VWAP. For intraday, pass sessionKeys (e.g. YYYY-MM-DD) to reset each KRX session.
  * Without keys, computes one cumulative series (daily “anchored” style — label accordingly).
@@ -207,4 +275,639 @@ export function atr(
     }
   }
   return sma(tr, period);
+}
+
+export type RangeBar = {
+  high: number;
+  low: number;
+  close: number;
+  date?: string;
+};
+
+export type RangePositionStats = {
+  close: number;
+  periodHigh: number;
+  periodLow: number;
+  periodHighDate: string | null;
+  periodLowDate: string | null;
+  periodHighIdx: number;
+  periodLowIdx: number;
+  recentHigh: number;
+  recentLow: number;
+  recentHighDate: string | null;
+  recentLowDate: string | null;
+  recentHighIdx: number;
+  recentLowIdx: number;
+  /** (close − 기간저) / 기간저 × 100 */
+  fromPeriodLowPct: number;
+  /** (close − 기간고) / 기간고 × 100 — typically ≤ 0 */
+  fromPeriodHighPct: number;
+  fromRecentHighPct: number;
+  fromRecentLowPct: number;
+};
+
+function pctChange(now: number, ref: number): number {
+  if (!(ref > 0) || !Number.isFinite(now)) return Number.NaN;
+  return ((now - ref) / ref) * 100;
+}
+
+/**
+ * Desk-style range position vs current price (TradingView visible-range + last swing).
+ * Period high/low = extrema of [from, to]. Recent high/low = last confirmed pivot
+ * in that window (so a new high on the last few bars is 기간고, not yet 최근고).
+ */
+export function computeRangePosition(
+  bars: RangeBar[],
+  opts?: {
+    from?: number;
+    to?: number;
+    close?: number;
+    pivotLeft?: number;
+    pivotRight?: number;
+  },
+): RangePositionStats | null {
+  if (!bars.length) return null;
+  const from = Math.max(0, Math.floor(opts?.from ?? 0));
+  const to = Math.min(bars.length - 1, Math.floor(opts?.to ?? bars.length - 1));
+  if (to < from) return null;
+
+  const close = opts?.close ?? bars[bars.length - 1]!.close;
+  if (!(close > 0) || !Number.isFinite(close)) return null;
+
+  let periodHigh = -Infinity;
+  let periodLow = Infinity;
+  let periodHighIdx = from;
+  let periodLowIdx = from;
+  for (let i = from; i <= to; i++) {
+    const b = bars[i]!;
+    if (b.high >= periodHigh) {
+      periodHigh = b.high;
+      periodHighIdx = i;
+    }
+    if (b.low <= periodLow) {
+      periodLow = b.low;
+      periodLowIdx = i;
+    }
+  }
+  if (!(periodHigh > 0) || !(periodLow > 0) || !Number.isFinite(periodHigh)) {
+    return null;
+  }
+
+  const n = to - from + 1;
+  const left =
+    opts?.pivotLeft ?? Math.max(3, Math.min(8, Math.floor(n / 40) || 3));
+  const right = opts?.pivotRight ?? left;
+  const highs: number[] = [];
+  const lows: number[] = [];
+  for (let i = from; i <= to; i++) {
+    highs.push(bars[i]!.high);
+    lows.push(bars[i]!.low);
+  }
+  const piv = findPivots(highs, lows, left, right);
+
+  let recentHighIdx =
+    piv.highIdx.length > 0 ? from + piv.highIdx[piv.highIdx.length - 1]! : periodHighIdx;
+  let recentLowIdx =
+    piv.lowIdx.length > 0 ? from + piv.lowIdx[piv.lowIdx.length - 1]! : periodLowIdx;
+
+  const winStart = from + Math.max(0, n - Math.max(8, Math.floor(n * 0.2)));
+  if (piv.highIdx.length === 0) {
+    let h = -Infinity;
+    let hi = winStart;
+    for (let i = winStart; i <= to; i++) {
+      if (bars[i]!.high >= h) {
+        h = bars[i]!.high;
+        hi = i;
+      }
+    }
+    recentHighIdx = hi;
+  }
+  if (piv.lowIdx.length === 0) {
+    let l = Infinity;
+    let li = winStart;
+    for (let i = winStart; i <= to; i++) {
+      if (bars[i]!.low <= l) {
+        l = bars[i]!.low;
+        li = i;
+      }
+    }
+    recentLowIdx = li;
+  }
+
+  const recentHigh = bars[recentHighIdx]!.high;
+  const recentLow = bars[recentLowIdx]!.low;
+  const dateOf = (i: number) => bars[i]?.date?.slice(0, 16) ?? null;
+
+  return {
+    close,
+    periodHigh,
+    periodLow,
+    periodHighDate: dateOf(periodHighIdx),
+    periodLowDate: dateOf(periodLowIdx),
+    periodHighIdx,
+    periodLowIdx,
+    recentHigh,
+    recentLow,
+    recentHighDate: dateOf(recentHighIdx),
+    recentLowDate: dateOf(recentLowIdx),
+    recentHighIdx,
+    recentLowIdx,
+    fromPeriodLowPct: pctChange(close, periodLow),
+    fromPeriodHighPct: pctChange(close, periodHigh),
+    fromRecentHighPct: pctChange(close, recentHigh),
+    fromRecentLowPct: pctChange(close, recentLow),
+  };
+}
+
+/** Line-series variant (export desk, flow). High = low = close = value. */
+export function computeSeriesRangePosition(
+  points: { value: number; date?: string }[],
+  close?: number,
+): RangePositionStats | null {
+  const bars: RangeBar[] = points
+    .filter((p) => Number.isFinite(p.value) && p.value !== 0)
+    .map((p) => ({
+      high: p.value,
+      low: p.value,
+      close: p.value,
+      date: p.date,
+    }));
+  return computeRangePosition(bars, close != null ? { close } : undefined);
+}
+
+export type StreetTape = {
+  lookback: number;
+  barsUsed: number;
+  high: number;
+  low: number;
+  highDate: string | null;
+  lowDate: string | null;
+  /** (close − 52w high) / high × 100. Typically ≤ 0. */
+  offHighPct: number;
+  /** (close − 52w low) / low × 100. Typically ≥ 0. */
+  offLowPct: number;
+  /** 0 = at the low, 100 = at the high. */
+  rangeLocation: number;
+  sma50: number | null;
+  sma200: number | null;
+  vsSma50Pct: number | null;
+  vsSma200Pct: number | null;
+  /** Last volume ÷ prior 20-bar average. Null when volume is absent. */
+  relVolume: number | null;
+};
+
+/**
+ * Fixed-window desk tape. Daily charts pass 252 bars (52 weeks).
+ * Weekly valuation series pass 52. This does not move when the user zooms.
+ */
+export function streetTape(
+  bars: (RangeBar & { volume?: number })[],
+  opts?: { lookback?: number },
+): StreetTape | null {
+  if (bars.length < 2) return null;
+  const close = bars[bars.length - 1]!.close;
+  if (!(close > 0) || !Number.isFinite(close)) return null;
+  const lookback = Math.max(2, Math.floor(opts?.lookback ?? Math.min(252, bars.length)));
+  const start = Math.max(0, bars.length - lookback);
+  const window = bars.slice(start);
+  let high = -Infinity;
+  let low = Infinity;
+  let highDate: string | null = null;
+  let lowDate: string | null = null;
+  for (const bar of window) {
+    if (bar.high >= high) {
+      high = bar.high;
+      highDate = bar.date?.slice(0, 10) ?? null;
+    }
+    if (bar.low > 0 && bar.low <= low) {
+      low = bar.low;
+      lowDate = bar.date?.slice(0, 10) ?? null;
+    }
+  }
+  if (!(high > 0) || !(low > 0) || !Number.isFinite(high) || !Number.isFinite(low)) return null;
+  const closes = bars.map((bar) => bar.close);
+  const s50 = sma(closes, 50);
+  const s200 = sma(closes, 200);
+  const sma50 = s50[s50.length - 1] ?? null;
+  const sma200 = s200[s200.length - 1] ?? null;
+  let relVolume: number | null = null;
+  const vols = bars.map((bar) => bar.volume ?? 0);
+  const lastVol = vols[vols.length - 1] ?? 0;
+  if (vols.length >= 21 && lastVol > 0) {
+    let sum = 0;
+    let n = 0;
+    for (let i = vols.length - 21; i < vols.length - 1; i++) {
+      if (vols[i]! > 0) {
+        sum += vols[i]!;
+        n += 1;
+      }
+    }
+    if (n >= 10 && sum > 0) relVolume = lastVol / (sum / n);
+  }
+  const span = high - low;
+  return {
+    lookback,
+    barsUsed: window.length,
+    high,
+    low,
+    highDate,
+    lowDate,
+    offHighPct: pctChange(close, high),
+    offLowPct: pctChange(close, low),
+    rangeLocation: span > 0 ? ((close - low) / span) * 100 : 100,
+    sma50: sma50 != null && sma50 > 0 ? sma50 : null,
+    sma200: sma200 != null && sma200 > 0 ? sma200 : null,
+    vsSma50Pct: sma50 != null && sma50 > 0 ? pctChange(close, sma50) : null,
+    vsSma200Pct: sma200 != null && sma200 > 0 ? pctChange(close, sma200) : null,
+    relVolume,
+  };
+}
+
+/** Linear interpolation percentile. `q` is 0–1. `sorted` must be ascending. */
+export function linearPercentile(sorted: number[], q: number): number {
+  if (!sorted.length) return Number.NaN;
+  const clamped = Math.min(1, Math.max(0, q));
+  const pos = (sorted.length - 1) * clamped;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo]!;
+  const w = pos - lo;
+  return sorted[lo]! * (1 - w) + sorted[hi]! * w;
+}
+
+/**
+ * Rolling close percentile channel. Each point uses only the past `window`
+ * closes (no look-ahead). Needs 20 positive prints before a band is drawn.
+ */
+export function rollingPercentileBands(
+  values: number[],
+  window = 120,
+): { p10: (number | null)[]; p50: (number | null)[]; p90: (number | null)[] } {
+  const p10: (number | null)[] = [];
+  const p50: (number | null)[] = [];
+  const p90: (number | null)[] = [];
+  const span = Math.max(20, Math.floor(window));
+  for (let i = 0; i < values.length; i++) {
+    const start = Math.max(0, i - span + 1);
+    const slice = values.slice(start, i + 1).filter((v) => Number.isFinite(v) && v > 0);
+    if (slice.length < 20) {
+      p10.push(null);
+      p50.push(null);
+      p90.push(null);
+      continue;
+    }
+    slice.sort((a, b) => a - b);
+    p10.push(linearPercentile(slice, 0.1));
+    p50.push(linearPercentile(slice, 0.5));
+    p90.push(linearPercentile(slice, 0.9));
+  }
+  return { p10, p50, p90 };
+}
+
+/** Share of positive values at or below the last one, 0–100. Null until 8 prints. */
+export function closePercentile(values: number[]): number | null {
+  const xs = values.filter((v) => Number.isFinite(v) && v > 0);
+  if (xs.length < 8) return null;
+  const last = xs[xs.length - 1]!;
+  let le = 0;
+  for (const v of xs) if (v <= last) le += 1;
+  return (le / xs.length) * 100;
+}
+
+/** 이격도 = 종가 / 이평 × 100. 100이면 이평과 같다. */
+export function disparity(closes: number[], period: number): (number | null)[] {
+  const ma = sma(closes, period);
+  return closes.map((c, i) => (ma[i] != null && ma[i]! > 0 ? (c / ma[i]!) * 100 : null));
+}
+
+/** Fast stochastic. %K uses the high-low range; %D is an SMA of %K. */
+export function stochastic(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  kPeriod = 14,
+  dPeriod = 3,
+): { k: (number | null)[]; d: (number | null)[] } {
+  const k: (number | null)[] = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i + 1 < kPeriod) {
+      k.push(null);
+      continue;
+    }
+    let hh = -Infinity;
+    let ll = Infinity;
+    for (let j = i - kPeriod + 1; j <= i; j++) {
+      if (highs[j]! > hh) hh = highs[j]!;
+      if (lows[j]! < ll) ll = lows[j]!;
+    }
+    const span = hh - ll;
+    k.push(span > 0 ? ((closes[i]! - ll) / span) * 100 : null);
+  }
+  const d: (number | null)[] = [];
+  for (let i = 0; i < k.length; i++) {
+    if (i + 1 < dPeriod) {
+      d.push(null);
+      continue;
+    }
+    let sum = 0;
+    let n = 0;
+    for (let j = i - dPeriod + 1; j <= i; j++) {
+      if (k[j] == null) continue;
+      sum += k[j]!;
+      n += 1;
+    }
+    d.push(n === dPeriod ? sum / dPeriod : null);
+  }
+  return { k, d };
+}
+
+/** 투자심리선: 최근 N봉 중 상승 봉 비율 × 100. */
+export function psychologicalLine(closes: number[], period = 12): (number | null)[] {
+  const out: (number | null)[] = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period) {
+      out.push(null);
+      continue;
+    }
+    let up = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      if (closes[j]! > closes[j - 1]!) up += 1;
+    }
+    out.push((up / period) * 100);
+  }
+  return out;
+}
+
+export type QuantSnapshot = {
+  bars: number;
+  totalReturnPct: number;
+  /** Annualized if periodsPerYear is set, otherwise the per-bar stdev × 100. */
+  volPct: number | null;
+  volAnnualized: boolean;
+  /** Most negative peak-to-trough in the loaded window, ≤ 0. */
+  maxDrawdownPct: number;
+  /** Last close vs its running peak, ≤ 0. */
+  currentDrawdownPct: number;
+  fromLowPct: number;
+  closePercentile: number | null;
+  disparity20: number | null;
+  stochasticK: number | null;
+  stochasticD: number | null;
+  psych12: number | null;
+};
+
+function sampleStdev(xs: number[]): number | null {
+  if (xs.length < 2) return null;
+  let mean = 0;
+  for (const x of xs) mean += x;
+  mean /= xs.length;
+  let acc = 0;
+  for (const x of xs) {
+    const d = x - mean;
+    acc += d * d;
+  }
+  return Math.sqrt(acc / (xs.length - 1));
+}
+
+/**
+ * Window statistics used on stock and ETF charts.
+ * Volatility is the sample stdev of log returns. It is annualized only when
+ * `periodsPerYear` is the bar frequency (252 daily, 52 weekly, 12 monthly).
+ */
+export function quantSnapshot(
+  bars: { high: number; low: number; close: number }[],
+  periodsPerYear: number | null,
+): QuantSnapshot | null {
+  if (bars.length < 8) return null;
+  const closes = bars.map((b) => b.close);
+  const first = closes[0]!;
+  const last = closes[closes.length - 1]!;
+  if (!(first > 0) || !(last > 0)) return null;
+  const rets: number[] = [];
+  for (let i = 1; i < closes.length; i++) {
+    const prev = closes[i - 1]!;
+    const cur = closes[i]!;
+    if (prev > 0 && cur > 0) rets.push(Math.log(cur / prev));
+  }
+  const sd = sampleStdev(rets);
+  const volPct =
+    sd == null ? null : periodsPerYear != null && periodsPerYear > 0 ? sd * Math.sqrt(periodsPerYear) * 100 : sd * 100;
+  let peak = closes[0]!;
+  let trough = closes[0]!;
+  let maxDd = 0;
+  let currentDd = 0;
+  for (const c of closes) {
+    if (!(c > 0)) continue;
+    if (c > peak) peak = c;
+    if (c < trough) trough = c;
+    const dd = (c / peak - 1) * 100;
+    if (dd < maxDd) maxDd = dd;
+    currentDd = dd;
+  }
+  const disp = disparity(closes, 20);
+  const st = stochastic(
+    bars.map((b) => b.high),
+    bars.map((b) => b.low),
+    closes,
+  );
+  const psych = psychologicalLine(closes, 12);
+  return {
+    bars: bars.length,
+    totalReturnPct: ((last - first) / first) * 100,
+    volPct,
+    volAnnualized: periodsPerYear != null && periodsPerYear > 0,
+    maxDrawdownPct: maxDd,
+    currentDrawdownPct: currentDd,
+    fromLowPct: trough > 0 ? ((last - trough) / trough) * 100 : Number.NaN,
+    closePercentile: closePercentile(closes),
+    disparity20: disp[disp.length - 1] ?? null,
+    stochasticK: st.k[st.k.length - 1] ?? null,
+    stochasticD: st.d[st.d.length - 1] ?? null,
+    psych12: psych[psych.length - 1] ?? null,
+  };
+}
+
+export type BandCompare = {
+  close: number;
+  bbMid: number | null;
+  bbUpper: number | null;
+  bbLower: number | null;
+  /** (종가 − 하단) / (상단 − 하단). 1보다 크면 볼린저 상단 밖. */
+  percentB: number | null;
+  bbWidthPct: number | null;
+  p10: number | null;
+  p50: number | null;
+  p90: number | null;
+  /** 백분위 창 안에서 현재 종가의 순위, 0–100. */
+  pctRank: number | null;
+  window: number;
+  note: string;
+};
+
+/**
+ * Bollinger is a 20-bar mean ± 2 sample-style σ (population σ of that window).
+ * Percentile bands are the empirical 10/50/90 of the longer window.
+ * They diverge when the short window is skewed or the longer window has fat tails.
+ */
+export function compareBollingerAndPercentile(
+  closes: number[],
+  bbPeriod = 20,
+  bbMult = 2,
+  pctWindow = 120,
+): BandCompare | null {
+  if (closes.length < bbPeriod) return null;
+  const close = closes[closes.length - 1]!;
+  if (!(close > 0)) return null;
+  const bb = bollinger(closes, bbPeriod, bbMult);
+  const upper = bb.upper[bb.upper.length - 1] ?? null;
+  const lower = bb.lower[bb.lower.length - 1] ?? null;
+  const mid = bb.mid[bb.mid.length - 1] ?? null;
+  const span = upper != null && lower != null ? upper - lower : null;
+  const percentB = span != null && span > 0 ? (close - lower!) / span : null;
+  const bbWidthPct = span != null && mid != null && mid > 0 ? (span / mid) * 100 : null;
+  const bands = rollingPercentileBands(closes, pctWindow);
+  const p10 = bands.p10[bands.p10.length - 1] ?? null;
+  const p50 = bands.p50[bands.p50.length - 1] ?? null;
+  const p90 = bands.p90[bands.p90.length - 1] ?? null;
+  const start = Math.max(0, closes.length - Math.max(20, pctWindow));
+  const pctRank = closePercentile(closes.slice(start));
+  let note =
+    "볼린저는 최근 20봉 평균±2σ입니다. 백분위는 더 긴 구간의 종가 10·50·90%로, 분포를 정규라고 가정하지 않습니다.";
+  const aboveBb = percentB != null && percentB > 1;
+  const belowBb = percentB != null && percentB < 0;
+  const highPct = pctRank != null && pctRank >= 90;
+  const lowPct = pctRank != null && pctRank <= 10;
+  if (aboveBb && !highPct) {
+    note = "단기 볼린저 상단 밖이지만, 긴 구간 백분위는 아직 상위 10%가 아닙니다. σ 밴드와 경험적 분포가 어긋난 상태입니다.";
+  } else if (belowBb && !lowPct) {
+    note = "단기 볼린저 하단 밖이지만, 긴 구간 백분위는 하위 10%가 아닙니다. 단기 변동성만 크게 벗어난 상태입니다.";
+  } else if (aboveBb && highPct) {
+    note = "볼린저 상단과 백분위 상단이 같이 위에 있습니다. 단기 σ와 중기 분포가 모두 비싼 쪽입니다.";
+  } else if (belowBb && lowPct) {
+    note = "볼린저 하단과 백분위 하단이 같이 아래에 있습니다. 단기 σ와 중기 분포가 모두 싼 쪽입니다.";
+  } else if (percentB != null && percentB > 0.8 && pctRank != null && pctRank < 60) {
+    note = "볼린저 %b는 상단에 가깝고 백분위 순위는 중간입니다. 최근 20봉 변동성이 줄며 밴드가 좁아진 경우입니다.";
+  }
+  return {
+    close,
+    bbMid: mid,
+    bbUpper: upper,
+    bbLower: lower,
+    percentB,
+    bbWidthPct,
+    p10,
+    p50,
+    p90,
+    pctRank,
+    window: Math.min(pctWindow, closes.length),
+    note,
+  };
+}
+
+export type DivergenceKind = "regular-bullish" | "regular-bearish" | "hidden-bullish" | "hidden-bearish";
+
+export type RsiDivergence = {
+  kind: DivergenceKind;
+  label: string;
+  i1: number;
+  i2: number;
+  price1: number;
+  price2: number;
+  rsi1: number;
+  rsi2: number;
+};
+
+const DIVERGENCE_LABEL: Record<DivergenceKind, string> = {
+  "regular-bullish": "정규 상승 다이버전스",
+  "regular-bearish": "정규 하락 다이버전스",
+  "hidden-bullish": "히든 상승 다이버전스",
+  "hidden-bearish": "히든 하락 다이버전스",
+};
+
+/**
+ * Compare two confirmed swings.
+ * Lows: later price lower + RSI higher = regular bullish. Later price higher + RSI lower = hidden bullish.
+ * Highs: later price higher + RSI lower = regular bearish. Later price lower + RSI higher = hidden bearish.
+ * Equal prices or equal RSI are not a divergence.
+ */
+export function classifySwingDivergence(
+  side: "low" | "high",
+  earlierPrice: number,
+  laterPrice: number,
+  earlierRsi: number,
+  laterRsi: number,
+): DivergenceKind | null {
+  if (![earlierPrice, laterPrice, earlierRsi, laterRsi].every((n) => Number.isFinite(n))) return null;
+  if (side === "low") {
+    if (laterPrice < earlierPrice && laterRsi > earlierRsi) return "regular-bullish";
+    if (laterPrice > earlierPrice && laterRsi < earlierRsi) return "hidden-bullish";
+    return null;
+  }
+  if (laterPrice > earlierPrice && laterRsi < earlierRsi) return "regular-bearish";
+  if (laterPrice < earlierPrice && laterRsi > earlierRsi) return "hidden-bearish";
+  return null;
+}
+
+/**
+ * RSI divergence from confirmed pivots only.
+ * A pivot needs `right` bars after it, so the signal does not use an unfinished swing.
+ * On each side the latest regular pair and the latest hidden pair are kept,
+ * scanning the last six adjacent swings, and only if the later pivot is inside `maxAge`.
+ * Hidden bullish: higher price low, lower RSI low (uptrend continuation).
+ * Hidden bearish: lower price high, higher RSI high (downtrend continuation).
+ */
+export function detectRsiDivergences(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  opts?: { rsiPeriod?: number; left?: number; right?: number; maxAge?: number },
+): RsiDivergence[] {
+  const rsiPeriod = opts?.rsiPeriod ?? 14;
+  const left = opts?.left ?? 5;
+  const right = opts?.right ?? 5;
+  const maxAge = opts?.maxAge ?? 40;
+  if (closes.length < rsiPeriod + left + right + 2) return [];
+  const rsi = rsiOf(closes, rsiPeriod);
+  const pivots = findPivots(highs, lows, left, right);
+  const out: RsiDivergence[] = [];
+  const consider = (idxs: number[], side: "low" | "high", priceOf: number[]) => {
+    const usable = idxs.filter((i) => rsi[i] != null && Number.isFinite(priceOf[i]!));
+    if (usable.length < 2) return;
+    let latestRegular: RsiDivergence | null = null;
+    let latestHidden: RsiDivergence | null = null;
+    const start = Math.max(1, usable.length - 6);
+    for (let k = usable.length - 1; k >= start; k--) {
+      const i2 = usable[k]!;
+      const i1 = usable[k - 1]!;
+      if (closes.length - 1 - i2 > maxAge) continue;
+      if (i2 - i1 < left) continue;
+      const kind = classifySwingDivergence(side, priceOf[i1]!, priceOf[i2]!, rsi[i1]!, rsi[i2]!);
+      if (!kind) continue;
+      const item: RsiDivergence = {
+        kind,
+        label: DIVERGENCE_LABEL[kind],
+        i1,
+        i2,
+        price1: priceOf[i1]!,
+        price2: priceOf[i2]!,
+        rsi1: rsi[i1]!,
+        rsi2: rsi[i2]!,
+      };
+      if (kind.startsWith("hidden")) {
+        if (!latestHidden) latestHidden = item;
+      } else if (!latestRegular) {
+        latestRegular = item;
+      }
+      if (latestHidden && latestRegular) break;
+    }
+    if (latestHidden) out.push(latestHidden);
+    if (latestRegular) out.push(latestRegular);
+  };
+  consider(pivots.lowIdx, "low", lows);
+  consider(pivots.highIdx, "high", highs);
+  return out;
+}
+
+function rsiOf(closes: number[], period: number): (number | null)[] {
+  return rsi(closes, period);
 }

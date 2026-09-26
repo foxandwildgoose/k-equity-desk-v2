@@ -38,7 +38,7 @@ const BUCKETS: EtfMarketBucket[] = [
 ];
 
 type DeskTab = EtfMarketBucket | "new-news";
-type SortKey = "default" | "listed-new" | "price-low";
+type SortKey = "default" | "listed-new" | "price-low" | "volume-high" | "market-sum-high";
 
 function EtfIndexPage() {
   const [tab, setTab] = useState<DeskTab>("retirement");
@@ -96,6 +96,22 @@ function EtfIndexPage() {
         const pa = a.price > 0 ? a.price : Number.POSITIVE_INFINITY;
         const pb = b.price > 0 ? b.price : Number.POSITIVE_INFINITY;
         if (pa !== pb) return pa - pb;
+        return a.nameKo.localeCompare(b.nameKo, "ko");
+      });
+    }
+    if (sort === "volume-high") {
+      return [...rows].sort((a, b) => {
+        const va = a.volume > 0 ? a.volume : Number.NEGATIVE_INFINITY;
+        const vb = b.volume > 0 ? b.volume : Number.NEGATIVE_INFINITY;
+        if (va !== vb) return vb - va;
+        return a.nameKo.localeCompare(b.nameKo, "ko");
+      });
+    }
+    if (sort === "market-sum-high") {
+      return [...rows].sort((a, b) => {
+        const ma = a.marketSum > 0 ? a.marketSum : Number.NEGATIVE_INFINITY;
+        const mb = b.marketSum > 0 ? b.marketSum : Number.NEGATIVE_INFINITY;
+        if (ma !== mb) return mb - ma;
         return a.nameKo.localeCompare(b.nameKo, "ko");
       });
     }
@@ -220,6 +236,20 @@ function EtfIndexPage() {
               className={cn("seg-tab text-[11px]", sort === "price-low" && "seg-tab-on")}
             >
               현재가 낮은순
+            </button>
+            <button
+              type="button"
+              onClick={() => setSort("volume-high")}
+              className={cn("seg-tab text-[11px]", sort === "volume-high" && "seg-tab-on")}
+            >
+              거래량 많은순
+            </button>
+            <button
+              type="button"
+              onClick={() => setSort("market-sum-high")}
+              className={cn("seg-tab text-[11px]", sort === "market-sum-high" && "seg-tab-on")}
+            >
+              시총(억) 높은순
             </button>
           </div>
         )}

@@ -2,6 +2,7 @@ import { createFileRoute, Link, Navigate, notFound } from "@tanstack/react-route
 import { useEtfBundle } from "@/lib/use-market";
 import { TradingChart } from "@/components/stocks/TradingChart";
 import { normalizeKrTicker, isKrTicker, isDigitTicker, looksLikeEtf } from "@/lib/infer-sector";
+import { yahooUsSymbol } from "@/lib/valuation-series";
 import {
   formatHoldingPrice,
   formatPct,
@@ -79,7 +80,16 @@ function EtfDetailPage() {
   if (data && "error" in data) throw notFound();
 
   const etf = data && "etf" in data ? data.etf : null;
-  const holdings = data && "holdings" in data ? data.holdings : [];
+  const holdingsRaw = data && "holdings" in data ? data.holdings : [];
+  const holdings = [...holdingsRaw].sort((a, b) => {
+    const aw = a.weight;
+    const bw = b.weight;
+    if (aw == null && bw == null) return Math.abs(b.quantity ?? 0) - Math.abs(a.quantity ?? 0);
+    if (aw == null) return 1;
+    if (bw == null) return -1;
+    if (bw !== aw) return bw - aw;
+    return Math.abs(b.quantity ?? 0) - Math.abs(a.quantity ?? 0);
+  });
   const themeStocks = data && "themeStocks" in data ? data.themeStocks : [];
   const peers = data && "peerEtfs" in data ? data.peerEtfs : [];
   const asOf = data && "holdingsAsOf" in data ? data.holdingsAsOf : null;
@@ -112,7 +122,14 @@ function EtfDetailPage() {
     .reduce((s, a) => s + a.weight, 0);
   const naverItemUrl = `https://finance.naver.com/item/main.naver?code=${(etf?.code ?? code).toUpperCase()}`;
   const plusSearchUrl = `https://www.plusetf.co.kr/product/overview?searchWord=${encodeURIComponent((etf?.code ?? code).toUpperCase())}`;
-  const isPlus = /PLUS|한화/.test(`${etf?.nameKo ?? ""} ${data && "issuer" in data ? data.issuer : ""}`);
+  const issuerName = `${etf?.nameKo ?? ""} ${data && "issuer" in data ? data.issuer : ""}`;
+  const isPlus = /PLUS|한화/.test(issuerName);
+  const isRise = /RISE|KBSTAR|KB자산/.test(issuerName);
+  const issuerUrl =
+    data && "holdingsIssuerUrl" in data && typeof data.holdingsIssuerUrl === "string"
+      ? data.holdingsIssuerUrl
+      : null;
+  const riseSearchUrl = `https://riseetf.co.kr/prod/finder?searchText=${encodeURIComponent((etf?.code ?? code).toUpperCase())}`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -252,12 +269,12 @@ function EtfDetailPage() {
                 </span>
               )}
               <span className="text-xs">
-                분·일·주·월 캔들 · 추세선 · 피보나치 · RSI · 볼린저 · 측정
+                주식 차트와 동일 · 고점 대비 하락 · 저점 대비 상승 · 52주 · 백분위 밴드 · 이격도 · 스토캐스틱
               </span>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              분·일·주·월 캔들 · 추세선 · 피보나치 · RSI · 볼린저 · 측정
+              주식 차트와 동일 · 고점 대비 하락 · 저점 대비 상승 · 52주 · 백분위 밴드 · 이격도 · 스토캐스틱
             </p>
           )}
           <TradingChart
@@ -295,14 +312,18 @@ function EtfDetailPage() {
           </div>
         </div>
         <div className="desk-card desk-card-gold p-4">
-          <div className="text-sm text-muted-foreground">공식 비중 합계</div>
+          <div className="text-sm text-muted-foreground">
+            {officialCount > 0 ? "공식 비중 합계" : "편입 비중 합계"}
+          </div>
           <div className="mt-1 text-xl font-semibold tabular">
-            {officialWeightSum != null && officialCount > 0
+            {officialWeightSum != null && (officialCount > 0 || holdings.some((h) => h.weight != null))
               ? formatWeight(officialWeightSum)
               : "—"}
           </div>
           <div className="text-sm text-muted-foreground">
-            추정 미사용 · 공시 {officialCount}/{holdings.length || 0}
+            {officialCount > 0
+              ? `공식 NAV 비중 ${officialCount}/${holdings.length || 0} · 높은 비중 순`
+              : "공식 NAV 비중 없음 · 추정 비중은 표시하지 않음"}
           </div>
         </div>
         <div className="desk-card desk-card-indigo p-4">
@@ -370,11 +391,22 @@ function EtfDetailPage() {
             size="sm"
             primaryUrl={naverItemUrl}
             primaryLabel="네이버 구성종목"
-            more={
-              isPlus
+            more={[
+              ...(isPlus
                 ? [{ label: "PLUS 운용사 페이지", url: plusSearchUrl }]
-                : []
-            }
+                : []),
+              ...(isRise
+                ? [
+                    {
+                      label: "RISE 운용사 PDF",
+                      url: issuerUrl || riseSearchUrl,
+                    },
+                  ]
+                : []),
+              ...(issuerUrl && !isPlus && !isRise
+                ? [{ label: "운용사 구성종목", url: issuerUrl }]
+                : []),
+            ]}
           />
         </div>
 
@@ -408,8 +440,10 @@ function EtfDetailPage() {
                   const pct = q?.changePct ?? 0;
                   const krStock = Boolean(row.code && row.isKoreanEquity);
                   const krEtf = Boolean(row.code && row.isKoreanEtf);
+                  const usSymbol =
+                    row.isOverseas && row.reutersCode ? yahooUsSymbol(row.reutersCode) : null;
                   const usLink =
-                    row.isOverseas && row.reutersCode
+                    !usSymbol && row.isOverseas && row.reutersCode
                       ? `https://m.stock.naver.com/worldstock/stock/${row.reutersCode}/total`
                       : null;
                   const cls =
@@ -497,6 +531,14 @@ function EtfDetailPage() {
                           >
                             {row.nameKo}
                           </Link>
+                        ) : usSymbol ? (
+                          <Link
+                            to="/us/$symbol"
+                            params={{ symbol: usSymbol }}
+                            className="font-semibold hover:underline"
+                          >
+                            {row.nameKo}
+                          </Link>
                         ) : usLink ? (
                           <a
                             href={usLink}
@@ -567,6 +609,14 @@ function EtfDetailPage() {
                             className="inline-flex items-center gap-0.5 text-sm text-primary hover:underline"
                           >
                             ETF <ArrowUpRight className="size-3.5" />
+                          </Link>
+                        ) : usSymbol ? (
+                          <Link
+                            to="/us/$symbol"
+                            params={{ symbol: usSymbol }}
+                            className="inline-flex items-center gap-0.5 text-sm text-primary hover:underline"
+                          >
+                            차트 <ArrowUpRight className="size-3.5" />
                           </Link>
                         ) : usLink ? (
                           <a

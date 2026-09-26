@@ -8,17 +8,32 @@ import {
 import type { Market } from "@/data/types";
 import type { ChartInterval, MinuteSize, OhlcBar } from "@/server/naver-market";
 import { useChartData } from "@/lib/use-market";
-import { formatPrice, formatVolume } from "@/lib/format";
+import { formatPrice, formatUsd, formatVolume, formatPct } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { RangePositionStrip, StreetTapeRow, ChartAnalyticsStrip, BandCompareStrip, RsiDivergenceStrip, MacdCrossStrip } from "@/components/stocks/RangePositionStrip";
+import {
+  ChartViewBar,
+  ValuationHistoryChart,
+  type ChartViewMode,
+} from "@/components/stocks/ValuationHistoryChart";
 import {
   atr as calcAtr,
   bollinger,
+  compareBollingerAndPercentile,
+  computeRangePosition,
+  detectMacdCrosses,
+  detectRsiDivergences,
   findPivots,
   lastNumber,
   macd as calcMacd,
+  quantSnapshot,
+  rollingPercentileBands,
   rsi as calcRsi,
+  sma as calcSma,
+  streetTape,
   vwap as calcVwap,
+  type RsiDivergence,
 } from "@/lib/chart-indicators";
 import {
   createChart,
@@ -37,6 +52,8 @@ import {
   type HistogramData,
   type LineData,
   type LogicalRange,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
   createSeriesMarkers,
 } from "lightweight-charts";
 import {
@@ -151,8 +168,36 @@ type SegDrawing = {
 
 type Drawing = HLineDrawing | SegDrawing;
 
-function barTime(bar: OhlcBar): Time {
+function zonedWallToUnix(ymdHm: string, timeZone: string): number {
+  const [date, hm] = ymdHm.split(" ");
+  const [year, month, day] = (date ?? "").split("-").map(Number);
+  const [hour, minute] = (hm ?? "00:00").split(":").map(Number);
+  if (!year || !month || !day) return 0;
+  let utc = Date.UTC(year, month - 1, day, hour || 0, minute || 0);
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  for (let i = 0; i < 3; i++) {
+    const parts = fmt.formatToParts(new Date(utc));
+    const g = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+    const asWall = Date.UTC(g("year"), g("month") - 1, g("day"), g("hour") === 24 ? 0 : g("hour"), g("minute"));
+    const want = Date.UTC(year, month - 1, day, hour || 0, minute || 0);
+    const delta = want - asWall;
+    if (delta === 0) break;
+    utc += delta;
+  }
+  return Math.floor(utc / 1000);
+}
+
+function barTime(bar: OhlcBar, zone: "KR" | "US" = "KR"): Time {
   if (bar.date.includes(" ")) {
+    if (zone === "US") return zonedWallToUnix(bar.date, "America/New_York") as Time;
     // "YYYY-MM-DD HH:mm" KST → unix
     const iso = bar.date.replace(" ", "T") + ":00+09:00";
     const ms = Date.parse(iso);
@@ -190,31 +235,42 @@ export function TradingChart({
   eventMarkers = [],
 }: {
   code: string;
-  market: Market;
+  market: Market | "US";
   /** Optional disclosure/event dates (YYYY-MM-DD) for chart markers */
   eventMarkers?: { time: string; title: string }[];
 }) {
+  const isUs = market === "US";
+  const zone: "KR" | "US" = isUs ? "US" : "KR";
+  const px = (n: number) => (isUs ? formatUsd(n) : formatPrice(n));
   const [interval, setInterval] = useState<ChartInterval>("day");
   const [minuteSize, setMinuteSize] = useState<MinuteSize>(5);
-  const [range, setRange] = useState("2y");
+  const [range, setRange] = useState(isUs ? "5y" : "2y");
   const [showMa, setShowMa] = useState({
     ma5: true,
     ma20: true,
     ma60: true,
     ma120: false,
   });
-  const [showBb, setShowBb] = useState(false);
+  const [showBb, setShowBb] = useState(true);
   const [showAtr, setShowAtr] = useState(true);
   const [showVwap, setShowVwap] = useState(true);
   const [showRsi, setShowRsi] = useState(true);
-  const [showMacd, setShowMacd] = useState(false);
+  const [showMacd, setShowMacd] = useState(true);
+  const [showStreetMa, setShowStreetMa] = useState({ ma50: isUs, ma200: isUs });
+  const [show52, setShow52] = useState(true);
+  const [showPctBands, setShowPctBands] = useState(true);
   const [logScale, setLogScale] = useState(false);
   const [magnet, setMagnet] = useState(true);
   const [tool, setTool] = useState<DrawTool>("cursor");
   const [chartH, setChartH] = useState(480);
+  const [view, setView] = useState<ChartViewMode>("price");
   const [drawings, setDrawings] = useState<Drawing[]>(() => loadDrawings(code));
   const [hover, setHover] = useState<OhlcBar | null>(null);
   const [measureLabel, setMeasureLabel] = useState<string | null>(null);
+  const [visibleSpan, setVisibleSpan] = useState<{ from: number; to: number } | null>(
+    null,
+  );
+  const [chartEpoch, setChartEpoch] = useState(0);
   const [pending, setPending] = useState<{
     t: number;
     p: number;
@@ -264,6 +320,15 @@ export function TradingChart({
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const maRefs = useRef<Record<string, ISeriesApi<"Line"> | null>>({});
+  const streetMaRef = useRef<{ ma50: ISeriesApi<"Line"> | null; ma200: ISeriesApi<"Line"> | null }>({
+    ma50: null,
+    ma200: null,
+  });
+  const pctBandRef = useRef<{ p10: ISeriesApi<"Line"> | null; p50: ISeriesApi<"Line"> | null; p90: ISeriesApi<"Line"> | null }>({
+    p10: null,
+    p50: null,
+    p90: null,
+  });
   const bbRefs = useRef<{
     mid: ISeriesApi<"Line"> | null;
     upper: ISeriesApi<"Line"> | null;
@@ -277,7 +342,10 @@ export function TradingChart({
     hist: ISeriesApi<"Histogram"> | null;
   }>({ macd: null, signal: null, hist: null });
   const priceLinesRef = useRef<Map<string, IPriceLine>>(new Map());
+  const rangeLinesRef = useRef<Map<string, IPriceLine>>(new Map());
   const overlayRef = useRef<SVGSVGElement>(null);
+  const markersApiRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const divRef = useRef<RsiDivergence[]>([]);
   const barsRef = useRef(bars);
   barsRef.current = bars;
   const toolRef = useRef(tool);
@@ -296,7 +364,40 @@ export function TradingChart({
       ? ((last.close - first.open) / first.open) * 100
       : 0;
 
-    const displayBar = hover ?? last;
+  const displayBar = hover ?? last;
+
+  const rangeStats = useMemo(() => {
+    if (bars.length < 2) return null;
+    let from = 0;
+    let to = bars.length - 1;
+    if (visibleSpan) {
+      from = Math.max(0, Math.floor(visibleSpan.from));
+      to = Math.min(bars.length - 1, Math.ceil(visibleSpan.to));
+    }
+    return computeRangePosition(bars, {
+      from,
+      to,
+      close: last?.close,
+    });
+  }, [bars, visibleSpan, last?.close]);
+
+  const street = useMemo(() => {
+    if (!show52 || bars.length < 2) return null;
+    const lookback = interval === "week" ? 52 : interval === "month" ? 12 : interval === "year" ? bars.length : 252;
+    return streetTape(
+      bars.map((b) => ({ high: b.high, low: b.low, close: b.close, date: b.date, volume: b.volume })),
+      { lookback },
+    );
+  }, [bars, interval, show52]);
+
+  const maWord = interval === "week" ? "주" : interval === "month" ? "개월" : interval === "year" ? "년" : interval === "minute" ? "봉" : "일";
+  const periodsPerYear =
+    interval === "day" ? 252 : interval === "week" ? 52 : interval === "month" ? 12 : interval === "year" ? 1 : null;
+  const pctWindow = interval === "week" ? 52 : interval === "month" ? 24 : interval === "year" ? 10 : 120;
+  const analytics = useMemo(
+    () => quantSnapshot(bars, periodsPerYear),
+    [bars, periodsPerYear],
+  );
 
   const atrHud = useMemo(() => {
     if (!showAtr || bars.length < 15) return null;
@@ -311,39 +412,24 @@ export function TradingChart({
     return { atr: v, pct: (v / last.close) * 100 };
   }, [bars, showAtr, last]);
 
-  // Disclosure markers on daily bars
-  useEffect(() => {
-    const series = candleRef.current;
-    if (!series) return;
-    if (interval === "minute" || !eventMarkers.length || bars.length === 0) {
-      try {
-        createSeriesMarkers(series, []);
-      } catch {
-        /* */
-      }
-      return;
-    }
-    const byDay = new Set<string>();
-    for (const m of eventMarkers) {
-      const d = m.time.slice(0, 10);
-      if (d) byDay.add(d);
-    }
-    const markers = bars
-      .filter((b) => byDay.has(b.date.slice(0, 10)))
-      .slice(-25)
-      .map((b) => ({
-        time: barTime(b),
-        position: "aboveBar" as const,
-        color: "#e5b84c",
-        shape: "circle" as const,
-        text: "공시",
-      }));
-    try {
-      createSeriesMarkers(series, markers);
-    } catch {
-      /* API variance */
-    }
-  }, [bars, eventMarkers, interval]);
+  const bandCompare = useMemo(
+    () => compareBollingerAndPercentile(bars.map((b) => b.close), 20, 2, pctWindow),
+    [bars, pctWindow],
+  );
+  const divergences = useMemo(() => {
+    if (!showRsi || bars.length < 30) return [];
+    return detectRsiDivergences(
+      bars.map((b) => b.high),
+      bars.map((b) => b.low),
+      bars.map((b) => b.close),
+      { rsiPeriod: 14, left: 5, right: 5, maxAge: interval === "minute" ? 80 : 60 },
+    );
+  }, [bars, interval, showRsi]);
+  divRef.current = divergences;
+  const macdCrosses = useMemo(
+    () => detectMacdCrosses(bars.map((b) => b.close), { maxAge: interval === "minute" ? 80 : 40 }),
+    [bars, interval],
+  );
 
   // ── Chart lifecycle ──────────────────────────────────────────────
   useEffect(() => {
@@ -427,6 +513,44 @@ export function TradingChart({
         crosshairMarkerVisible: false,
       });
     }
+    streetMaRef.current.ma50 = chart.addSeries(LineSeries, {
+      color: "#f97316",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    streetMaRef.current.ma200 = chart.addSeries(LineSeries, {
+      color: "#2563eb",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    pctBandRef.current.p10 = chart.addSeries(LineSeries, {
+      color: "#2dd4bf",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    pctBandRef.current.p50 = chart.addSeries(LineSeries, {
+      color: "#facc15",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dotted,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    pctBandRef.current.p90 = chart.addSeries(LineSeries, {
+      color: "#fb7185",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
 
     bbRefs.current.mid = chart.addSeries(LineSeries, {
       color: "#64748b",
@@ -521,6 +645,7 @@ export function TradingChart({
     chartRef.current = chart;
     candleRef.current = candles;
     volRef.current = volume;
+    setChartEpoch((n) => n + 1);
 
     const onCross = (param: MouseEventParams<Time>) => {
       if (!param.time || !param.seriesData.size) {
@@ -528,7 +653,7 @@ export function TradingChart({
         return;
       }
       const idx = barsRef.current.findIndex((b) => {
-        const t = barTime(b);
+        const t = barTime(b, zone);
         return String(t) === String(param.time);
       });
       if (idx >= 0) setHover(barsRef.current[idx]!);
@@ -548,7 +673,7 @@ export function TradingChart({
 
       // find nearest bar index
       let idx = barsRef.current.findIndex(
-        (b) => String(barTime(b)) === String(param.time),
+        (b) => String(barTime(b, zone)) === String(param.time),
       );
       if (idx < 0) idx = barsRef.current.length - 1;
       const bar = barsRef.current[idx];
@@ -621,19 +746,43 @@ export function TradingChart({
     });
     ro.observe(el);
 
-    const onRange = () => redrawOverlay();
+    let rangeRaf = 0;
+    const onRange = (r: LogicalRange | null) => {
+      redrawOverlay();
+      if (!r) return;
+      cancelAnimationFrame(rangeRaf);
+      rangeRaf = requestAnimationFrame(() => {
+        setVisibleSpan({ from: r.from, to: r.to });
+      });
+    };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);
 
     return () => {
+      cancelAnimationFrame(rangeRaf);
       ro.disconnect();
       chart.remove();
       chartRef.current = null;
       candleRef.current = null;
       volRef.current = null;
+      markersApiRef.current = null;
       priceLinesRef.current.clear();
+      rangeLinesRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upColor, downColor]);
+
+  useEffect(() => {
+    if (view !== "price") return;
+    const chart = chartRef.current;
+    const el = wrapRef.current;
+    if (!chart || !el) return;
+    const id = requestAnimationFrame(() => {
+      if (el.clientWidth > 0) {
+        chart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [view]);
 
   // log scale toggle
   useEffect(() => {
@@ -672,16 +821,26 @@ export function TradingChart({
     if (!candles || !vol || !chart || bars.length === 0) return;
 
     const candleData: CandlestickData<Time>[] = bars.map((b) => ({
-      time: barTime(b),
+      time: barTime(b, zone),
       open: b.open,
       high: b.high,
       low: b.low,
       close: b.close,
     }));
     candles.setData(candleData);
+    if (isUs) {
+      const penny = bars.some((b) => b.close > 0 && b.close < 1);
+      candles.applyOptions({
+        priceFormat: {
+          type: "price",
+          precision: penny ? 4 : 2,
+          minMove: penny ? 0.0001 : 0.01,
+        },
+      });
+    }
 
     const volData: HistogramData<Time>[] = bars.map((b) => ({
-      time: barTime(b),
+      time: barTime(b, zone),
       value: b.volume,
       color: b.bullish ? upColor + "66" : downColor + "66",
     }));
@@ -697,7 +856,7 @@ export function TradingChart({
       const data: LineData<Time>[] = [];
       for (const b of bars) {
         const v = b[m.key];
-        if (v != null) data.push({ time: barTime(b), value: v });
+        if (v != null) data.push({ time: barTime(b, zone), value: v });
       }
       series.setData(data);
     }
@@ -707,13 +866,45 @@ export function TradingChart({
     const lows = bars.map((b) => b.low);
     const volumes = bars.map((b) => b.volume);
 
+    const pushSma = (series: ISeriesApi<"Line"> | null, period: number, on: boolean) => {
+      if (!series) return;
+      if (!on) {
+        series.setData([]);
+        return;
+      }
+      const arr = calcSma(closes, period);
+      const line: LineData<Time>[] = [];
+      arr.forEach((v, i) => {
+        if (v != null) line.push({ time: barTime(bars[i]!, zone), value: v });
+      });
+      series.setData(line);
+    };
+    pushSma(streetMaRef.current.ma50, 50, showStreetMa.ma50);
+    pushSma(streetMaRef.current.ma200, 200, showStreetMa.ma200);
+    const pct = rollingPercentileBands(closes, pctWindow);
+    const pushBand = (series: ISeriesApi<"Line"> | null, arr: (number | null)[]) => {
+      if (!series) return;
+      if (!showPctBands) {
+        series.setData([]);
+        return;
+      }
+      const line: LineData<Time>[] = [];
+      arr.forEach((v, i) => {
+        if (v != null && v > 0) line.push({ time: barTime(bars[i]!, zone), value: v });
+      });
+      series.setData(line);
+    };
+    pushBand(pctBandRef.current.p10, pct.p10);
+    pushBand(pctBandRef.current.p50, pct.p50);
+    pushBand(pctBandRef.current.p90, pct.p90);
+
     // Bollinger
     if (showBb) {
       const bb = bollinger(closes, 20, 2);
       const toLine = (arr: (number | null)[]) => {
         const out: LineData<Time>[] = [];
         arr.forEach((v, i) => {
-          if (v != null) out.push({ time: barTime(bars[i]!), value: v });
+          if (v != null) out.push({ time: barTime(bars[i]!, zone), value: v });
         });
         return out;
       };
@@ -735,7 +926,7 @@ export function TradingChart({
       const vw = calcVwap(highs, lows, closes, volumes, sessionKeys);
       const data: LineData<Time>[] = [];
       vw.forEach((v, i) => {
-        if (v != null) data.push({ time: barTime(bars[i]!), value: v });
+        if (v != null) data.push({ time: barTime(bars[i]!, zone), value: v });
       });
       vwapRef.current?.setData(data);
     } else {
@@ -750,7 +941,7 @@ export function TradingChart({
       const r = calcRsi(closes, 14);
       const data: LineData<Time>[] = [];
       r.forEach((v, i) => {
-        if (v != null) data.push({ time: barTime(bars[i]!), value: v });
+        if (v != null) data.push({ time: barTime(bars[i]!, zone), value: v });
       });
       rsiRef.current?.setData(data);
       rsiRef.current?.applyOptions({ visible: true });
@@ -766,16 +957,16 @@ export function TradingChart({
       const histData: HistogramData<Time>[] = [];
       m.macd.forEach((v, i) => {
         if (v != null)
-          macdData.push({ time: barTime(bars[i]!), value: v });
+          macdData.push({ time: barTime(bars[i]!, zone), value: v });
       });
       m.signal.forEach((v, i) => {
         if (v != null)
-          sigData.push({ time: barTime(bars[i]!), value: v });
+          sigData.push({ time: barTime(bars[i]!, zone), value: v });
       });
       m.hist.forEach((v, i) => {
         if (v != null)
           histData.push({
-            time: barTime(bars[i]!),
+            time: barTime(bars[i]!, zone),
             value: v,
             color: v >= 0 ? upColor + "99" : downColor + "99",
           });
@@ -802,7 +993,67 @@ export function TradingChart({
     showMacd,
     upColor,
     downColor,
+    showStreetMa,
+    showPctBands,
+    pctWindow,
+    zone,
   ]);
+
+  useEffect(() => {
+    const series = candleRef.current;
+    if (!series || bars.length === 0) return;
+    const markers: SeriesMarker<Time>[] = [];
+    if (interval !== "minute" && eventMarkers.length) {
+      const byDay = new Set<string>();
+      for (const marker of eventMarkers) {
+        const day = marker.time.slice(0, 10);
+        if (day) byDay.add(day);
+      }
+      for (const bar of bars.filter((item) => byDay.has(item.date.slice(0, 10))).slice(-25)) {
+        markers.push({
+          time: barTime(bar, zone),
+          position: "aboveBar",
+          color: "#e5b84c",
+          shape: "circle",
+          text: "공시",
+        });
+      }
+    }
+    for (const swing of divergences) {
+      const bar = bars[swing.i2];
+      if (!bar) continue;
+      const bull = swing.kind.endsWith("bullish");
+      markers.push({
+        time: barTime(bar, zone),
+        position: bull ? "belowBar" : "aboveBar",
+        color: bull ? "#2dd4bf" : "#fb7185",
+        shape: bull ? "arrowUp" : "arrowDown",
+        text: swing.kind.startsWith("hidden") ? (bull ? "히든↑" : "히든↓") : bull ? "RSI↑" : "RSI↓",
+      });
+    }
+    for (const cross of macdCrosses) {
+      const bar = bars[cross.index];
+      if (!bar) continue;
+      const golden = cross.kind === "golden";
+      markers.push({
+        time: barTime(bar, zone),
+        position: golden ? "belowBar" : "aboveBar",
+        color: golden ? "#e5b84c" : "#94a3b8",
+        shape: golden ? "arrowUp" : "arrowDown",
+        text: golden ? "골든" : "데드",
+      });
+    }
+    markers.sort((a, b) => {
+      if (typeof a.time === "number" && typeof b.time === "number") return a.time - b.time;
+      return String(a.time).localeCompare(String(b.time));
+    });
+    try {
+      if (!markersApiRef.current) markersApiRef.current = createSeriesMarkers(series, markers);
+      else markersApiRef.current.setMarkers(markers);
+    } catch {
+      markersApiRef.current = null;
+    }
+  }, [bars, eventMarkers, interval, divergences, macdCrosses, zone, chartEpoch]);
 
   // ── Price lines for hlines + fib ─────────────────────────────────
   useEffect(() => {
@@ -852,7 +1103,7 @@ export function TradingChart({
             lineWidth: 1,
             lineStyle: LineStyle.Dashed,
             axisLabelVisible: true,
-            title: `Fib ${lv.r} ${Math.round(price).toLocaleString("ko-KR")}`,
+            title: `Fib ${lv.r} ${px(price)}`,
           });
           priceLinesRef.current.set(`${d.id}-f${i}`, pl);
         });
@@ -861,6 +1112,82 @@ export function TradingChart({
     redrawOverlay();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawings, bars.length]);
+
+  // ── Period / swing high-low price lines (TradingView-style) ─────
+  useEffect(() => {
+    const series = candleRef.current;
+    if (!series) return;
+    for (const [, pl] of rangeLinesRef.current) {
+      try {
+        series.removePriceLine(pl);
+      } catch {
+        /* */
+      }
+    }
+    rangeLinesRef.current.clear();
+    if (!rangeStats) return;
+
+    const add = (
+      id: string,
+      price: number,
+      color: string,
+      title: string,
+      style: LineStyle,
+    ) => {
+      const pl = series.createPriceLine({
+        price,
+        color,
+        lineWidth: 1,
+        lineStyle: style,
+        axisLabelVisible: true,
+        title,
+      });
+      rangeLinesRef.current.set(id, pl);
+    };
+    const near = (a: number, b: number) =>
+      Math.abs(a - b) / Math.max(a, b, 1) < 0.0008;
+
+    add(
+      "ph",
+      rangeStats.periodHigh,
+      upColor,
+      `기간고 ${formatPct(rangeStats.fromPeriodHighPct)}`,
+      LineStyle.Dashed,
+    );
+    add(
+      "pl",
+      rangeStats.periodLow,
+      downColor,
+      `기간저 ${formatPct(rangeStats.fromPeriodLowPct)}`,
+      LineStyle.Dashed,
+    );
+    if (!near(rangeStats.recentHigh, rangeStats.periodHigh)) {
+      add(
+        "rh",
+        rangeStats.recentHigh,
+        "#c9a227",
+        `최근고 ${formatPct(rangeStats.fromRecentHighPct)}`,
+        LineStyle.Dotted,
+      );
+    }
+    if (!near(rangeStats.recentLow, rangeStats.periodLow)) {
+      add(
+        "rl",
+        rangeStats.recentLow,
+        "#0f766e",
+        `최근저 ${formatPct(rangeStats.fromRecentLowPct)}`,
+        LineStyle.Dotted,
+      );
+    }
+    if (show52 && street) {
+      if (!near(street.high, rangeStats.periodHigh)) {
+        add("y52h", street.high, "#fb7185", `52주고 ${formatPct(street.offHighPct)}`, LineStyle.SparseDotted);
+      }
+      if (!near(street.low, rangeStats.periodLow)) {
+        add("y52l", street.low, "#2dd4bf", `52주저 ${formatPct(street.offLowPct)}`, LineStyle.SparseDotted);
+      }
+    }
+  }, [rangeStats, upColor, downColor, bars.length, show52, street]);
 
   const redrawOverlay = useCallback(() => {
     const svg = overlayRef.current;
@@ -879,7 +1206,7 @@ export function TradingChart({
     const toXY = (barIdx: number, price: number) => {
       const bar = barsNow[barIdx];
       if (!bar) return null;
-      const x = ts.timeToCoordinate(barTime(bar));
+      const x = ts.timeToCoordinate(barTime(bar, zone));
       const y = series.priceToCoordinate(price);
       if (x == null || y == null) return null;
       return { x, y };
@@ -980,6 +1307,25 @@ export function TradingChart({
     }
 
     // pending first point marker
+    const swings = divRef.current;
+    for (const swing of swings) {
+      const a = toXY(swing.i1, swing.price1);
+      const b = toXY(swing.i2, swing.price2);
+      if (!a || !b) continue;
+      const bull = swing.kind.endsWith("bullish");
+      const color = bull ? "#2dd4bf" : "#fb7185";
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", String(a.x));
+      line.setAttribute("y1", String(a.y));
+      line.setAttribute("x2", String(b.x));
+      line.setAttribute("y2", String(b.y));
+      line.setAttribute("stroke", color);
+      line.setAttribute("stroke-width", "1.25");
+      line.setAttribute("stroke-dasharray", "5 4");
+      line.setAttribute("stroke-linecap", "round");
+      svg.appendChild(line);
+    }
+
     const p = pendingRef.current;
     if (p) {
       const pt = toXY(p.t, p.p);
@@ -1247,6 +1593,8 @@ export function TradingChart({
 
   return (
     <div className="desk-card desk-card-navy overflow-hidden">
+      <ChartViewBar view={view} onChange={setView} />
+      <div className={view === "price" ? "contents" : "hidden"} aria-hidden={view !== "price"}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2.5 py-2">
         <div className="flex flex-wrap gap-0.5 rounded-md bg-muted p-0.5">
@@ -1257,7 +1605,7 @@ export function TradingChart({
               onClick={() => {
                 setInterval(item.id);
                 if (item.id === "minute") setRange(defaultMinuteRange(minuteSize));
-                else if (item.id === "day") setRange("2y");
+                else if (item.id === "day") setRange(isUs ? "5y" : "2y");
                 else if (item.id === "week") setRange("5y");
                 else setRange("max");
               }}
@@ -1506,18 +1854,54 @@ export function TradingChart({
           />
           MACD
         </label>
+        <label className="inline-flex items-center gap-1 cursor-pointer" title="월가 표준 50기간 단순이평">
+          <input
+            type="checkbox"
+            checked={showStreetMa.ma50}
+            onChange={() => setShowStreetMa((s) => ({ ...s, ma50: !s.ma50 }))}
+            className="size-3 accent-primary"
+          />
+          <span className="text-[#f97316]">SMA50</span>
+        </label>
+        <label className="inline-flex items-center gap-1 cursor-pointer" title="월가 표준 200기간 단순이평">
+          <input
+            type="checkbox"
+            checked={showStreetMa.ma200}
+            onChange={() => setShowStreetMa((s) => ({ ...s, ma200: !s.ma200 }))}
+            className="size-3 accent-primary"
+          />
+          <span className="text-[#2563eb]">SMA200</span>
+        </label>
+        <label className="inline-flex items-center gap-1 cursor-pointer" title="52주(일봉 252) 고점·저점">
+          <input
+            type="checkbox"
+            checked={show52}
+            onChange={() => setShow52((v) => !v)}
+            className="size-3 accent-primary"
+          />
+          52주
+        </label>
+        <label className="inline-flex items-center gap-1 cursor-pointer" title="과거 120봉(주봉 52) 종가의 10·50·90 백분위. 미래 가격은 쓰지 않습니다.">
+          <input
+            type="checkbox"
+            checked={showPctBands}
+            onChange={() => setShowPctBands((v) => !v)}
+            className="size-3 accent-primary"
+          />
+          <span className="text-[#2dd4bf]">백분위</span>
+        </label>
 
         {displayBar && (
           <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-0.5 tabular text-[11px] sm:text-xs">
             <span className="text-muted-foreground">{displayBar.date}</span>
             <span>
-              O <b>{formatPrice(displayBar.open)}</b>
+              O <b>{px(displayBar.open)}</b>
             </span>
             <span>
-              H <b>{formatPrice(displayBar.high)}</b>
+              H <b>{px(displayBar.high)}</b>
             </span>
             <span>
-              L <b>{formatPrice(displayBar.low)}</b>
+              L <b>{px(displayBar.low)}</b>
             </span>
             <span>
               C{" "}
@@ -1526,7 +1910,7 @@ export function TradingChart({
                   color: displayBar.bullish ? upColor : downColor,
                 }}
               >
-                {formatPrice(displayBar.close)}
+                {px(displayBar.close)}
               </b>
             </span>
             <span className="text-muted-foreground">
@@ -1544,7 +1928,7 @@ export function TradingChart({
             )}
             {atrHud && (
               <span className="text-muted-foreground">
-                ATR14 {formatPrice(Math.round(atrHud.atr))} (
+                ATR14 {isUs ? formatUsd(atrHud.atr) : formatPrice(Math.round(atrHud.atr))} (
                 {atrHud.pct.toFixed(2)}%)
               </span>
             )}
@@ -1552,8 +1936,30 @@ export function TradingChart({
         )}
       </div>
 
+      <RangePositionStrip
+        stats={rangeStats}
+        compact={isUs}
+        formatValue={isUs ? formatUsd : undefined}
+        caption="표시 구간 기준. 고점 대비는 하락률, 저점 대비는 상승률입니다. 줌하면 같이 바뀝니다."
+      />
+      {show52 ? (
+        <StreetTapeRow
+          tape={street}
+          formatValue={isUs ? formatUsd : formatPrice}
+          fastLabel={`50${maWord}`}
+          slowLabel={`200${maWord}`}
+          showVolume
+        />
+      ) : null}
+      <ChartAnalyticsStrip snap={analytics} />
+      <BandCompareStrip compare={bandCompare} formatValue={px} />
+      {showRsi ? (
+        <RsiDivergenceStrip items={divergences} barCount={bars.length} formatValue={px} />
+      ) : null}
+      <MacdCrossStrip items={macdCrosses} barCount={bars.length} />
+
       <div className="border-b border-border bg-muted/20 px-3 py-1 text-[10px] text-muted-foreground leading-relaxed">
-        차트 OHLC: Yahoo/네이버 비공식 경로 · 체결 스트림과 마지막 봉이 어긋날 수 있음 ·
+        차트 OHLC: {isUs ? "Yahoo 분할조정 · 미국 정규장 · 뉴욕 시각" : "Yahoo/네이버 비공식 경로"} · 체결 스트림과 마지막 봉이 어긋날 수 있음 ·
         실주문 전 HTS 재확인 · 휠=줌 · 드래그=이동 · H 수평선 T 추세선
       </div>
 
@@ -1627,6 +2033,8 @@ export function TradingChart({
             : ""}
         </span>
       </div>
+      </div>
+      {view !== "price" ? <ValuationHistoryChart code={code} mode={view} /> : null}
     </div>
   );
 }

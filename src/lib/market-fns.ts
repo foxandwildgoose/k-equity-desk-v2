@@ -263,13 +263,8 @@ export const getStockBundle = createServerFn({ method: "GET" })
 export const getChartData = createServerFn({ method: "GET" })
   .validator(
     z.object({
-      code: z
-        .string()
-        .min(4)
-        .max(8)
-        .transform((s) => normalizeKrTicker(s))
-        .refine((s) => /^[0-9A-Z]{6}$/.test(s), "invalid ticker"),
-      market: z.enum(["KOSPI", "KOSDAQ"]),
+      code: z.string().trim().min(1).max(12),
+      market: z.enum(["KOSPI", "KOSDAQ", "US"]),
       interval: z.enum(["minute", "day", "week", "month", "year"]),
       minuteSize: z
         .union([
@@ -286,6 +281,15 @@ export const getChartData = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data }) => {
+    if (data.market === "US") {
+      return fetchOhlc({
+        code: data.code.trim().toUpperCase(),
+        market: "US",
+        interval: data.interval,
+        minuteSize: data.minuteSize,
+        range: data.range,
+      });
+    }
     const code = normalizeKrTicker(data.code);
     return fetchOhlc({
       code,
@@ -294,6 +298,26 @@ export const getChartData = createServerFn({ method: "GET" })
       minuteSize: data.minuteSize,
       range: data.range,
     });
+  });
+
+export const getValuationSeries = createServerFn({ method: "GET" })
+  .validator(z.object({ code: z.string().trim().min(1).max(12) }))
+  .handler(async ({ data }) => {
+    const { fetchValuationSeries } = await import("@/server/valuation-series");
+    return fetchValuationSeries(data.code);
+  });
+
+export const getUsStreet = createServerFn({ method: "GET" })
+  .validator(z.object({ symbol: z.string().trim().max(12).optional() }))
+  .handler(async ({ data }) => {
+    const { emptyUsStreetPack, fetchUsStreetPack, fetchUsStreetSymbol } = await import("@/lib/us-street");
+    const symbol = data.symbol?.trim();
+    try {
+      if (symbol) return await fetchUsStreetSymbol(symbol);
+      return await fetchUsStreetPack();
+    } catch {
+      return emptyUsStreetPack("월가 공개 피드를 받지 못했습니다. 등급을 추정해 채우지 않습니다.");
+    }
   });
 
 export const getResearchPdf = createServerFn({ method: "GET" })
@@ -720,3 +744,28 @@ export const getUsLinkDesk = createServerFn({ method: "GET" }).handler(
     };
   },
 );
+
+export const getUsOfficialPolicy = createServerFn({ method: "GET" }).handler(async () => {
+  const { fetchUsOfficialPolicy } = await import("@/server/us-official-research");
+  return fetchUsOfficialPolicy();
+});
+
+export const getUsOfficialUniverse = createServerFn({ method: "GET" }).handler(async () => {
+  const { fetchUsOfficialUniverse } = await import("@/server/us-official-research");
+  return fetchUsOfficialUniverse();
+});
+
+export const getUsOfficialCompany = createServerFn({ method: "GET" })
+  .validator(z.object({ symbol: z.string().trim().min(1).max(12) }))
+  .handler(async ({ data }) => {
+    const { fetchUsOfficialCompany } = await import("@/server/us-official-research");
+    return fetchUsOfficialCompany(data.symbol);
+  });
+
+export const getUsOfficialReport = createServerFn({ method: "GET" })
+  .validator(z.object({ id: z.string().trim().min(3).max(180) }))
+  .handler(async ({ data }) => {
+    const { fetchUsOfficialReport } = await import("@/server/us-official-research");
+    return fetchUsOfficialReport(data.id);
+  });
+
