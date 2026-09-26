@@ -56,8 +56,8 @@ export function useResearchList(tab: ResearchTab, opts: { itemCodes?: string[]; 
   return { ...q, reports, totalCount, paths, errors };
 }
 
-export function useResearchBriefing() {
-  return useQuery({ queryKey: ["research-briefing"], queryFn: () => getResearchBriefing(), staleTime: 10 * 60_000, refetchOnWindowFocus: false });
+export function useResearchBriefing(opts?: { enabled?: boolean }) {
+  return useQuery({ queryKey: ["research-briefing"], queryFn: () => getResearchBriefing(), staleTime: 10 * 60_000, refetchOnWindowFocus: false, enabled: opts?.enabled ?? true });
 }
 
 export function useResearchDetail(r: ResearchReport | null) {

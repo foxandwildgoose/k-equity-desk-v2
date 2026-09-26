@@ -16,6 +16,8 @@ import { ResearchDetailSheet } from "@/components/research/ResearchDetailSheet";
 import { EmptyState } from "@/components/feed/EmptyState";
 import { useNow } from "@/components/feed/TimeStamp";
 import { cn } from "@/lib/utils";
+import { AiBriefingPanel } from "@/components/ai/AiBriefingPanel";
+import type { AiInputItem } from "@/lib/ai/briefing";
 
 const TABS: { id: ResearchTab; label: string }[] = [
   { id: "all", label: "전체" },
@@ -26,6 +28,18 @@ const TABS: { id: ResearchTab; label: string }[] = [
   { id: "debenture", label: V2_LABEL.debenture },
   { id: "market", label: V2_LABEL.market },
 ];
+
+/** On-screen reports → optional AI briefing input (F9.2): title, extractive summary, broker, time, page link — never PDFs. */
+function researchAiItems(reports: readonly ResearchReport[]): AiInputItem[] {
+  return reports.slice(0, 30).map((r) => ({
+    id: String(r.researchId),
+    title: `${r.nameKo ? `${r.nameKo} · ` : ""}${r.title}`,
+    snippet: r.summary || undefined,
+    source: r.broker,
+    time: reportTime(r).publishedAt ?? "날짜 미상",
+    url: r.pageUrl,
+  }));
+}
 
 /** Former fixed coverage names, kept only as part of the 관심종목 filter (F2.2). */
 export const FEATURED_CODES = ["005930", "000660", "373220", "034020", "005380", "207940", "009540"];
@@ -319,6 +333,7 @@ export function KrResearchDesk({ defaultTab = "all", defaultSector }: { defaultT
           경로 {list.paths.join("·") || "—"} {watchOnly ? `· 관심종목 ${watchCodes.length}개 기준` : ""}
         </span>
       </div>
+      <AiBriefingPanel items={researchAiItems(visible)} context="국내 증권사 리서치" />
 
       {visible.length === 0 ? (
         list.isLoading ? (

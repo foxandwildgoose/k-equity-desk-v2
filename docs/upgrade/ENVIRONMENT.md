@@ -12,13 +12,19 @@ Project Settings → Environment Variables에 등록합니다. 값이 없으면 
 | `FINNHUB_API_KEY` | 선택: 미국 기업 뉴스 추가 소스 | 소스 비활성 |
 | `NEWS_BLOOMBERG_ENABLED` | Bloomberg RSS 킬 스위치. 기본 `true` | `true`로 간주 (`false`면 모든 화면에서 제거) |
 | `AI_BRIEFING_ENABLED` | 선택 F9 AI 브리핑 레이어 스위치 (`true`일 때만) | F9 UI 숨김 |
-| `AI_PROVIDER` | `anthropic` 또는 `xai` | F9 숨김 |
-| `AI_MODEL` | 공급자 모델 ID (코드에 하드코딩하지 않음) | F9 숨김 |
-| `ANTHROPIC_API_KEY` / `XAI_API_KEY` | 선택한 공급자 키 | F9 숨김 |
-| `AI_DAILY_CAP` | F9 일일 호출 상한 (기본 50) | 50 |
+| `AI_PROVIDER` | `anthropic`(기본) 또는 `xai` | `anthropic`으로 간주 |
+| `AI_MODEL` | 공급자 모델 ID (코드에 하드코딩하지 않음, 필수) | F9 숨김 |
+| `ANTHROPIC_API_KEY` / `XAI_API_KEY` | `AI_PROVIDER`에 맞는 키 (공급자와 다른 키만 있으면 꺼짐) | F9 숨김 |
+| `AI_DAILY_CAP` | F9 일일 호출 상한 (UTC 날짜 기준, 서버 인스턴스별 메모리 카운트) | 50 |
+| `AI_EFFORT` | 선택: `low`/`medium`/`high` — Anthropic 요청의 `output_config.effort` (지원 모델에서만 설정) | 설정 안 함 |
 
 기존 선택 변수(변경 없음): `KIS_APPROVAL_URL`, `KIS_WS_URL` 등 `src/server/kis-realtime.ts`가
 읽는 KIS 엔드포인트 재정의 값.
+
+F9 동작 요약: 네 변수(`AI_BRIEFING_ENABLED=true`, `AI_MODEL`, 공급자 키, 선택적 `AI_PROVIDER`)가
+모두 맞아야 버튼이 보입니다. 버튼을 누를 때만 화면의 항목 ≤ 30건을 서버로 보내고, 모델에는
+제목·출처 발췌(≤ 240자)·출처·시각만 번호와 함께 전달합니다(원문·PDF·링크는 보내지 않음). 결과는 입력 해시 기준 15분 캐시되고, 호출 타임아웃은 8초·재시도
+없음입니다(Vercel 함수 제한 준수).
 
 ## 참고
 - 소스별 on/off 스위치와 상태: 앱의 `/status/sources` (소스 상태) 페이지.

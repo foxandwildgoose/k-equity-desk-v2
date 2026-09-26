@@ -224,6 +224,8 @@ export interface ResearchBriefing {
   down: GoalPriceMove[];
   weeklyHot: ResearchReport[];
   newCoverage: ResearchReport[];
+  /** F10.3 dashboard: 3 newest reports across categories (today's first; else the latest listing pages). */
+  latest: ResearchReport[];
   errors: string[];
   fetchedAt: string;
 }
@@ -272,12 +274,27 @@ export async function fetchResearchBriefing(): Promise<ResearchBriefing> {
   ]);
   const { isNewCoverage } = await import("@/lib/research/naver-v2");
   const companyToday = counts.find((c) => c.type === "company")?.items ?? [];
+  let latestRows = sortV2NewestFirst(counts.flatMap((c) => c.items)).slice(0, 3);
+  if (latestRows.length < 3) {
+    // Weekend/holiday: same first-page URLs as the research desk's 전체 tab (shared fetch cache).
+    const pages = await Promise.all(
+      types.map(async (type) => {
+        try {
+          return parseV2List(await fetchJsonWithPolicy<unknown>(listUrl({ type, index: 0, size: 20 }), { sourceId: "naver-research-v2", ttlMs: 180_000 }), type).items;
+        } catch {
+          return [] as ResearchV2Row[];
+        }
+      }),
+    );
+    latestRows = sortV2NewestFirst(pages.flat()).slice(0, 3);
+  }
   const data: ResearchBriefing = {
     todayCounts: counts.map(({ type, label, count }) => ({ type, label, count })),
     up: up.slice(0, 5),
     down: down.slice(0, 5),
     weeklyHot: weekly.slice(0, 5),
     newCoverage: sortV2NewestFirst(companyToday.filter((r) => isNewCoverage(r.title))).slice(0, 5).map(v2ToReport),
+    latest: latestRows.map(v2ToReport),
     errors,
     fetchedAt: new Date().toISOString(),
   };

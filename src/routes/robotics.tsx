@@ -30,6 +30,8 @@ import type { FeedItem, FeedSourceResult, TimePrecision } from "@/lib/feed/types
 import type { ResearchReport } from "@/server/naver-market";
 import type { RoboticsQuoteRow } from "@/server/robotics";
 import { cn } from "@/lib/utils";
+import { AiBriefingPanel, feedToAiItems } from "@/components/ai/AiBriefingPanel";
+import type { AiInputItem } from "@/lib/ai/briefing";
 
 const TABS = [
   { id: "overview", label: "개요" },
@@ -62,6 +64,15 @@ interface ResearchRow {
 function reportRow(r: ResearchReport): ResearchRow {
   const t = reportTime(r);
   return { id: `kr:${r.v2Type ?? r.category}:${r.researchId}`, title: r.nameKo ? `[${r.nameKo}] ${r.title}` : r.title, source: r.broker, url: r.pdfUrl || r.pageUrl, publishedAt: t.publishedAt, precision: t.precision, sourceTier: 3 };
+}
+
+/** The overview's on-screen previews (market 5 + policy 5 + research 5) → optional AI input, newest first. */
+function overviewAiItems(market: FeedItem[], policy: FeedItem[], research: ResearchRow[]): AiInputItem[] {
+  const feed = feedToAiItems([...market.slice(0, 5), ...policy.slice(0, 5)]);
+  const byId = new Map<string, AiInputItem>(feed.map((i) => [i.id, i]));
+  for (const r of research.slice(0, 5)) byId.set(r.id, { id: r.id, title: r.title, source: r.source, time: r.publishedAt ?? "날짜 미상", url: r.url });
+  const sortable = [...market.slice(0, 5), ...policy.slice(0, 5), ...research.slice(0, 5)].map((x) => ({ id: x.id, publishedAt: x.publishedAt, precision: x.precision, sourceTier: x.sourceTier }));
+  return sortable.sort(compareNewestFirst).map((x) => byId.get(x.id)).filter((x): x is AiInputItem => x != null);
 }
 
 function FeedPreview({ items, empty }: { items: FeedItem[]; empty: string }) {
@@ -252,6 +263,7 @@ function RoboticsPage() {
               )}
             </SectionCard>
           </div>
+          <AiBriefingPanel items={overviewAiItems(market.items, policy.items, researchRows)} context="로봇 산업 동향" />
           <SectionCard title="로봇 ETF 스냅샷" note="국내: 네이버 ETF 목록에서 이름(로봇·휴머노이드·로보틱스) 기준 · 미국: 지정 목록을 Yahoo로 확인" action={<Link to="/robotics" search={{ tab: "etf" }} className="text-[11px] font-semibold text-primary hover:underline">전체 →</Link>}>
             {(etfs.data?.kr.length ?? 0) + (etfs.data?.us.length ?? 0) === 0 ? (
               <p className="text-[10.5px] text-muted-foreground">{etfs.isLoading ? "수신 중…" : `ETF 시세 미수신${etfs.data?.krError ? ` (${etfs.data.krError})` : ""}`}</p>

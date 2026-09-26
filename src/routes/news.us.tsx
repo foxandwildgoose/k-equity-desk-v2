@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageDisclaimer } from "@/components/feed/PageDisclaimer";
@@ -12,6 +12,7 @@ import { usSessionEstimate } from "@/lib/feed/session";
 import { parseSourceTime, formatAbsoluteTime } from "@/lib/feed/time";
 import { useAppStore } from "@/lib/store";
 import { TzToggle } from "@/components/feed/TzToggle";
+import { AiBriefingPanel, AiTranslateButton, feedToAiItems } from "@/components/ai/AiBriefingPanel";
 
 export const Route = createFileRoute("/news/us")({
   component: UsNewsPage,
@@ -31,6 +32,7 @@ function fmt(n: number, digits = 2) {
 
 function UsNewsPage() {
   const feed = useFeed({ region: "US", limit: 60 });
+  const [translations, setTranslations] = useState<Record<string, string>>({});
   const snap = useMarketSnapshot();
   const cal = useUsCalendar();
   const tz = useAppStore((s) => s.newsPrefs.tz);
@@ -106,6 +108,12 @@ function UsNewsPage() {
         events={events ?? []}
         eventsNote={!mounted || cal.isLoading ? "일정 불러오는 중…" : "향후 7일 내 연준·BEA 일정을 받지 못했습니다(소스 미검증일 수 있음)."}
         tz={tz}
+        aiSlot={
+          <>
+            <AiBriefingPanel items={feedToAiItems(feed.items)} context="미국 증시 뉴스" />
+            <AiTranslateButton items={feed.items} onResult={setTranslations} />
+          </>
+        }
       />
       <NewsDesk
         items={feed.items}
@@ -117,6 +125,7 @@ function UsNewsPage() {
         tz={tz}
         withEt
         kinds={KINDS}
+        translations={translations}
       />
     </div>
   );

@@ -27,6 +27,7 @@ export function FeedList({
   tierBar = false,
   labelFor,
   className,
+  translations,
 }: {
   items: FeedItem[];
   tz?: DisplayZone;
@@ -40,6 +41,7 @@ export function FeedList({
   tierBar?: boolean;
   labelFor?: (t: FeedItem["tickers"][number]) => string | undefined;
   className?: string;
+  translations?: Record<string, string>;
 }) {
   const now = useNow(60_000);
   if (!items.length) {
@@ -71,7 +73,7 @@ export function FeedList({
                 </li>
               )}
               <li style={virtual ? { contentVisibility: "auto", containIntrinsicSize: "auto 92px" } : undefined}>
-                {renderRow ? renderRow(it) : <FeedRow item={it} tz={tz} withEt={withEt} tierBar={tierBar} labelFor={labelFor} />}
+                {renderRow ? renderRow(it) : <FeedRow item={it} tz={tz} withEt={withEt} tierBar={tierBar} labelFor={labelFor} translation={translations?.[it.id]} />}
               </li>
             </Fragment>
           );

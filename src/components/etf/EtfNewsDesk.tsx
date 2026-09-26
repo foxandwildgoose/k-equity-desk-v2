@@ -6,6 +6,7 @@ import { NewsDesk } from "@/components/feed/NewsDesk";
 import { SourceHealthChip } from "@/components/feed/SourceHealthChip";
 import { TimeStamp, useNow } from "@/components/feed/TimeStamp";
 import { SourceBadge } from "@/components/feed/FeedRow";
+import { AiBriefingPanel, feedToAiItems } from "@/components/ai/AiBriefingPanel";
 import { useFeed } from "@/lib/use-feed";
 import { useEtfNewsSnapshot } from "@/lib/use-themes";
 import { themeMomentum, topStories } from "@/lib/feed/briefing";
@@ -168,6 +169,7 @@ export function EtfNewsDesk({ embedded = false }: { embedded?: boolean }) {
             )}
           </div>
         }
+        aiSlot={<AiBriefingPanel items={feedToAiItems(feed.items)} context="국내 ETF 뉴스" />}
       />
       <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="ETF 브리핑 목록">
         <BriefList title="신규 상장 · 상장 예정" window="최근 14일 보도" items={brief?.listing ?? []} empty="해당 기사 없음 또는 미수신" />

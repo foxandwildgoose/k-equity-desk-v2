@@ -92,7 +92,7 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [x] F6.6 (M) ETF: KR via name regex from live list (code, name, price, 1D%, volume, mcap → /etfs), US seed BOTZ/ROBO/ARKQ/KOID/HUMN/BOTT verified
 - [~] F6.7 (M) research: KR v2 industry (robot kw) + v2 company for robot tickers (≤10 itemCodes/call) + Hankyung if verified; US PUBLIC_RESEARCH robotics, Street Moves, OFFICIAL filings; extractive, 원문, newest first — Hankyung robotics not separately verified (hankyung-it feeds the market tab via keyword filter); PUBLIC_RESEARCH empty (registry note shown); OFFICIAL on demand per symbol
 - [x] F6.8 (M) taxonomy keywords list; bare AI/인공지능 only with robot term; tests updated
-- [~] F6.9 (M) `/industry/robotics` → `/robotics` link; sidebar sector row links `/robotics`; dashboard card (P7) — links done in P4, card pending P7
+- [x] F6.9 (M) `/industry/robotics` → `/robotics` link; sidebar sector row links `/robotics`; dashboard card (P7) — links P4, dashboard 로봇 스냅샷 card P7
 
 ## F7 Pro charts (P6)
 - [x] F7.1 (M) `createProChart`/`useProChart` in `src/components/charts/core/`; CSS-var theme, `usePriceColors`; `formatters.ts` (KRW p0/minMove1/separators; USD 2dp, 4 < $1; %, volume 만/억 KR, K/M/B US); `krxTickSize(price, instrument)` w/ tests (verified table; ETF/ETN separate)
@@ -124,15 +124,15 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [x] F8.x document Web Push as future work (settings page note + PROGRESS/FINAL_REPORT)
 
 ## F9 Optional AI layer (P7, C)
-- [ ] F9.1 enabled only with `AI_BRIEFING_ENABLED=true` + provider key + `AI_MODEL`; else no UI
-- [ ] F9.2 user-clicked "AI 브리핑 생성" on F1–F6; ≤30 on-screen items (title, snippet, source, time, url, id); Korean bullets w/ `[n]` citations; server strips/rejects uncited bullets + unknown URLs
-- [ ] F9.3 cache by input hash 15 min; `AI_DAILY_CAP` (50); token/cost estimate; label `AI 요약 · 원문 확인 필요`; provider interface anthropic + xai; model from `AI_MODEL`
-- [ ] F9.4 optional EN→KO headline translation labeled `기계 번역`
+- [x] F9.1 enabled only with `AI_BRIEFING_ENABLED=true` + provider key + `AI_MODEL`; else no UI
+- [x] F9.2 user-clicked "AI 브리핑 생성" on F1–F6; ≤30 on-screen items (title, snippet, source, time, url, id); Korean bullets w/ `[n]` citations; server strips/rejects uncited bullets + unknown URLs
+- [x] F9.3 cache by input hash 15 min; `AI_DAILY_CAP` (50); token estimate (no price table: cost not shown); label `AI 요약 · 원문 확인 필요`; provider interface anthropic + xai; model from `AI_MODEL`
+- [x] F9.4 optional EN→KO headline translation labeled `기계 번역`
 
 ## F10 Navigation / state / dashboard
 - [x] F10.1 (M) grouped sidebar 한국/미국/테마/도구 (exact items); `/news` → `/news/kr`; sectors below; mobile Sheet
 - [x] F10.2 (M) store `version: 2` + `migrate`; fields usWatchlist, keywordWatch, alertSettings, newsPrefs, chartPrefs, roboticsCustom; migration test from unversioned
-- [ ] F10.3 (M) dashboard cards after first paint (`deferSecondary`): Live Wire top 5, 오늘의 리서치 (counts + 3 newest), US snapshot, Robotics snapshot
+- [x] F10.3 (M) dashboard cards after first paint (`deferSecondary`): Live Wire top 5, 오늘의 리서치 (counts + 3 newest), US snapshot, Robotics snapshot
 
 ## Platform / process
 - [x] A7 `.qa/` in `.gitignore`; restore `.vercel` before commits; per-phase commits
@@ -140,7 +140,7 @@ Legend: [ ] open · [x] done · [~] partial/degraded (see PROGRESS.md) · (M)=MU
 - [x] A9 `scripts/verify-sources.mjs` + `npm run verify:sources` → `SOURCES_STATUS.md`
 - [x] C1.5 `scripts/qa-smoke.mjs` + `npm run qa:smoke`
 - [x] C1 invariant test `scripts/project-invariants.test.mjs`
-- [ ] C3 `docs/upgrade/FINAL_REPORT.md` (Korean)
+- [x] C3 `docs/upgrade/FINAL_REPORT.md` (Korean)
 
 ## Acceptance tests
 - Foundations: AT-01 mixed dates newest-first + seq tie · AT-02 date-only no time, unknown sinks `날짜 미상` · AT-03 RSS/Atom/EUC-KR identical normalized · AT-04 cluster `[속보] 코스피 2% 급락` ≈ `코스피, 2% 급락 마감 - 한국경제`; high+ has ≥1 reason · AT-05 fetch policy rejects non-allowlisted/non-https; 429 opens circuit · AT-06 KRW integer w/ separators, USD 2dp · AT-07 attribution link on every chart page · AT-08 unversioned store migration keeps watchlist/theme/colorConvention

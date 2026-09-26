@@ -25,7 +25,7 @@ export function useEtfNewsSnapshot(opts?: { enabled?: boolean }) {
  * Robotics universe (F6.1): config ∪ user additions, verified server-side;
  * user-hidden keys are removed here. Unresolved names come back separately.
  */
-export function useRoboticsUniverse() {
+export function useRoboticsUniverse(opts?: { enabled?: boolean }) {
   const custom = useAppStore((s) => s.roboticsCustom);
   const addedKr = useMemo(() => custom.added.filter((e) => e.market === "KR").map(({ code, name, segment, exposure }) => ({ code, name, segment, exposure })), [custom.added]);
   const addedUs = useMemo(() => custom.added.filter((e) => e.market === "US").map(({ code, name, segment, exposure }) => ({ code, name, segment, exposure })), [custom.added]);
@@ -35,6 +35,7 @@ export function useRoboticsUniverse() {
     staleTime: 55_000,
     refetchInterval: 90_000,
     refetchOnWindowFocus: false,
+    enabled: opts?.enabled ?? true,
   });
   const removed = useMemo(() => new Set(custom.removed), [custom.removed]);
   const kr = useMemo(() => (q.data?.kr ?? []).filter((r) => !removed.has(r.key)), [q.data?.kr, removed]);

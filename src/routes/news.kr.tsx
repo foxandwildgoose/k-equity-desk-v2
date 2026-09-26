@@ -6,6 +6,7 @@ import { BriefingDigest, type SnapshotTile } from "@/components/feed/BriefingDig
 import { SourceHealthChip } from "@/components/feed/SourceHealthChip";
 import { NewsDesk } from "@/components/feed/NewsDesk";
 import { NaverAiBriefingCard } from "@/components/feed/NaverAiBriefingCard";
+import { AiBriefingPanel, feedToAiItems } from "@/components/ai/AiBriefingPanel";
 import { TimeStamp, useNow } from "@/components/feed/TimeStamp";
 import { useFeed, useMarketSnapshot } from "@/lib/use-feed";
 import { useMarketIndices } from "@/lib/use-market";
@@ -103,6 +104,7 @@ function KrNewsPage() {
         topStories={stories}
         themes={themes}
         extra={<NaverAiBriefingCard />}
+        aiSlot={<AiBriefingPanel items={feedToAiItems(feed.items)} context="한국 증시 뉴스" />}
       />
       <NewsDesk
         items={feed.items}

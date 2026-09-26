@@ -109,6 +109,7 @@ export function FeedRow({
   tierBar = false,
   labelFor,
   className,
+  translation,
 }: {
   item: FeedItem;
   tz?: DisplayZone;
@@ -118,6 +119,8 @@ export function FeedRow({
   tierBar?: boolean;
   labelFor?: (t: FeedItem["tickers"][number]) => string | undefined;
   className?: string;
+  /** F9.4 machine translation of an English headline. */
+  translation?: string;
 }) {
   const [open, setOpen] = useState(false);
   const members = item.cluster?.members ?? [];
@@ -154,6 +157,12 @@ export function FeedRow({
           <ExternalLink className="mt-0.5 size-3 shrink-0 opacity-40 group-hover:opacity-80" aria-hidden />
           <span className="sr-only">원문 (새 창)</span>
         </a>
+        {translation && (
+          <p className="mt-0.5 text-[12px] leading-snug text-foreground/85" lang="ko" data-translation>
+            <span className="mr-1 rounded bg-muted px-1 text-[9px] font-semibold text-muted-foreground">기계 번역</span>
+            {translation}
+          </p>
+        )}
         {item.snippet && !item.paywalled && (
           <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">{item.snippet}</p>
         )}

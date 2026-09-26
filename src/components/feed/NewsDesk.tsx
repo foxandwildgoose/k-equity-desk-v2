@@ -38,6 +38,7 @@ export function NewsDesk({
   withEt = false,
   kinds,
   header,
+  translations,
 }: {
   items: FeedItem[];
   sources: FeedSourceResult[];
@@ -49,6 +50,7 @@ export function NewsDesk({
   withEt?: boolean;
   kinds?: { id: string; label: string }[];
   header?: ReactNode;
+  translations?: Record<string, string>;
 }) {
   const [filters, setFilters] = useState<FeedFilterState>(EMPTY_FILTERS);
   const watch = useWatchContext();
@@ -75,6 +77,7 @@ export function NewsDesk({
         onLoadMore={onLoadMore}
         emptyReason={emptyReasonFor(sources, loading, filtered)}
         labelFor={krTickerLabel}
+        translations={translations}
       />
     </section>
   );

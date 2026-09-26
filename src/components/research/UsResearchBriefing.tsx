@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
-import type { UsStreetPack } from "@/lib/us-street";
+import { originalUrlForNote, type UsStreetPack } from "@/lib/us-street";
 import type { UsOfficialUniverse } from "@/lib/us-official-parse";
 import { toStreetMove } from "@/lib/street-moves";
 import { parseSourceTime, zonedParts } from "@/lib/feed/time";
@@ -9,10 +9,42 @@ import { useNow } from "@/components/feed/TimeStamp";
 import { OriginTierBadge } from "@/components/research/UsResearchKit";
 import { usePriceColors } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { compareNewestFirst } from "@/lib/feed/sort";
+import { AiBriefingPanel } from "@/components/ai/AiBriefingPanel";
+import type { AiInputItem } from "@/lib/ai/briefing";
 
 function etDay(ms: number): string {
   const p = zonedParts(ms, "America/New_York");
   return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
+}
+
+/** Street notes + headlines on screen → optional AI briefing input (F9.2), newest first, ≤ 30. */
+function usResearchAiItems(street: UsStreetPack | undefined): AiInputItem[] {
+  if (!street) return [];
+  const rows = [
+    ...street.notes.map((n) => ({
+      id: `note:${n.id}`,
+      publishedAt: n.publishedAt,
+      precision: n.precision,
+      sourceTier: 2 as const,
+      ai: {
+        id: `note:${n.id}`,
+        title: `${n.symbol} · ${n.broker} ${n.action}${n.rating ? ` ${n.rating}` : ""}${n.target ? ` (목표 ${n.target})` : ""}`,
+        snippet: n.summary || undefined,
+        source: n.sourceLabel,
+        time: n.publishedAt ?? "날짜 미상",
+        url: originalUrlForNote(n, street.headlines).url,
+      },
+    })),
+    ...street.headlines.map((h) => ({
+      id: `head:${h.id}`,
+      publishedAt: h.publishedAt,
+      precision: h.precision,
+      sourceTier: 3 as const,
+      ai: { id: `head:${h.id}`, title: `${h.symbol} · ${h.title}`, source: h.source, time: h.publishedAt ?? "날짜 미상", url: h.url },
+    })),
+  ];
+  return rows.sort(compareNewestFirst).slice(0, 30).map((r) => r.ai);
 }
 
 /**
@@ -115,6 +147,7 @@ export function UsResearchBriefing({ street, official }: { street?: UsStreetPack
           )}
         </div>
       </div>
+      <AiBriefingPanel items={usResearchAiItems(street)} context="미국 리서치·월가 등급" />
     </section>
   );
 }

@@ -186,7 +186,7 @@ function researchPage(type, index, n, total) {
   };
 }
 
-const EMPTY_BRIEFING = { todayCounts: [], up: [], down: [], weeklyHot: [], newCoverage: [], errors: [], fetchedAt: iso(0) };
+const EMPTY_BRIEFING = { todayCounts: [], up: [], down: [], weeklyHot: [], newCoverage: [], latest: [], errors: [], fetchedAt: iso(0) };
 
 const browser = await chromium();
 
@@ -759,6 +759,110 @@ await run(browser, "F7.15-perf", async (page) => {
   const max = longs.length ? Math.max(...longs) : 0;
   const bars = ((await page.textContent('[data-testid="workspace-pane-0"] [data-testid="chart-status"]')) ?? "").match(/([\d,]+)봉/)?.[1];
   record("F7.15-perf", max <= 200, `5,000 daily bars (${bars}) pan/zoom: long tasks=${longs.length} max=${Math.round(max)}ms`);
+});
+
+// synthetic fixture (format sample), not market data
+const AI_ON = { enabled: true, provider: "anthropic", dailyCap: 50, usedToday: 0 };
+const AI_RESULT = {
+  ok: true,
+  bullets: [
+    { text: "[QA 샘플] 배터리 증설 검토 보도 [1]", cites: [1] },
+    { text: "[QA 샘플] 지수 마감 시황과 공장 증설 [1][2]", cites: [1, 2] },
+  ],
+  rejected: 1,
+  items: [
+    { id: "qa:kr1", title: "[QA 샘플] LG에너지솔루션 북미 공장 증설 검토", source: "연합뉴스", time: iso(5), url: "https://example.com/qa/kr1" },
+    { id: "qa:kr2", title: "[QA 샘플] 코스피 마감 시황", source: "한국경제 증권", time: iso(40), url: "https://example.com/qa/kr2" },
+  ],
+  cached: false,
+  inputTokens: 1234,
+  outputTokens: 210,
+  provider: "anthropic",
+  generatedAt: iso(0),
+};
+
+await run(browser, "AT-46", async (page, ctx) => {
+  // 1) Server env unset (this dev server has no AI_* vars) → no AI UI at all.
+  await mockFeed(page, { KR: KR_PAGE, US: US_PAGE });
+  await page.goto(`${BASE}/news/kr`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-feed-id="qa:kr1"]', { timeout: 30_000 });
+  await page.waitForTimeout(1_500);
+  const offKr = await page.locator('[data-testid="ai-briefing"], [data-testid="ai-briefing-button"]').count();
+  await page.goto(`${BASE}/news/us`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-feed-id="qa:us1"]', { timeout: 30_000 });
+  await page.waitForTimeout(1_500);
+  const offUs = await page.locator('[data-testid="ai-briefing"], [data-testid="ai-translate-button"]').count();
+
+  // 2) Enabled (mocked status + provider result): user click → label + cited links.
+  const on = await ctx.newPage();
+  await mockFeed(on, { KR: KR_PAGE, US: US_PAGE });
+  let calls = 0;
+  await mockServerFns(on, {
+    getAiStatus: () => AI_ON,
+    generateAiBriefing: () => {
+      calls += 1;
+      return AI_RESULT;
+    },
+    translateAiHeadlines: () => ({ ok: true, translations: { "qa:us2": "[QA 샘플] 미 국채 금리 하락" }, cached: false }),
+  });
+  await on.goto(`${BASE}/news/kr`, { waitUntil: "domcontentloaded" });
+  await on.waitForSelector('[data-testid="ai-briefing-button"]', { timeout: 30_000 });
+  const before = calls;
+  for (let i = 0; i < 6 && !(await on.$('[data-testid="ai-label"]')); i++) {
+    await on.click('[data-testid="ai-briefing-button"]');
+    await on.waitForSelector('[data-testid="ai-label"]', { timeout: 2_000 }).catch(() => undefined);
+  }
+  const label = ((await on.textContent('[data-testid="ai-label"]')) ?? "").trim();
+  const links = await on.$$eval('[data-testid="ai-briefing"] li a', (as) => as.map((a) => a.getAttribute("href")));
+  const foot = (await on.textContent('[data-testid="ai-briefing"]')) ?? "";
+  await on.goto(`${BASE}/news/us`, { waitUntil: "domcontentloaded" });
+  await on.waitForSelector('[data-testid="ai-translate-button"]', { timeout: 30_000 });
+  for (let i = 0; i < 6 && !(await on.$('[data-feed-id="qa:us2"] [data-translation]')); i++) {
+    await on.click('[data-testid="ai-translate-button"]');
+    await on.waitForSelector('[data-feed-id="qa:us2"] [data-translation]', { timeout: 2_000 }).catch(() => undefined);
+  }
+  const mt = ((await on.textContent('[data-feed-id="qa:us2"]').catch(() => "")) ?? "").includes("기계 번역");
+  await on.screenshot({ path: join(outDir, "at-at-46-on.png") }).catch(() => undefined);
+  await on.close();
+  const ok =
+    offKr === 0 &&
+    offUs === 0 &&
+    before === 0 &&
+    calls >= 1 &&
+    label === "AI 요약 · 원문 확인 필요" &&
+    links.length === 3 &&
+    links.every((h) => h === "https://example.com/qa/kr1" || h === "https://example.com/qa/kr2") &&
+    /근거 없는 문장 1개 제외/.test(foot) &&
+    /토큰 입력 1,234/.test(foot) &&
+    mt;
+  record("AT-46", ok, `off: kr=${offKr} us=${offUs} · on: noCallBeforeClick=${before === 0} calls=${calls} label="${label}" citeLinks=${links.length} rejectedNote=${/근거 없는/.test(foot)} tokens=${/토큰/.test(foot)} 기계번역=${mt}`);
+});
+
+await run(browser, "F10.3", async (page) => {
+  await page.route("**/api/wire?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(wirePage([WIRE_B, WIRE_A])) }));
+  await mockServerFns(page, {
+    getResearchBriefing: () => ({ ...EMPTY_BRIEFING, todayCounts: [{ type: "company", label: "기업", count: 12 }, { type: "industry", label: "산업", count: 3 }], latest: [report(0), report(1), report(2)] }),
+    getMarketSnapshot: () => ({
+      rows: [
+        { id: "spx", symbol: "^GSPC", label: "S&P 500", price: 5000.5, change: 10, changePct: 0.2, currency: "USD", asOf: iso(30), delayMinutes: 15, source: "Yahoo Finance" },
+        { id: "usdkrw", symbol: "KRW=X", label: "USD/KRW", price: 1350.1, change: -2, changePct: -0.15, currency: "KRW", asOf: iso(30), delayMinutes: 15, source: "Yahoo Finance" },
+      ],
+      fetchedAt: iso(0),
+    }),
+    getRoboticsUniverse: () => UNIVERSE_MOCK,
+  });
+  const t0 = Date.now();
+  await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="dash-brief-cards"]', { timeout: 30_000 });
+  const wire = await page.waitForSelector('[data-testid="dash-wire"] a[href="https://example.com/qa/w2"]', { timeout: 15_000 }).then(() => true).catch(() => false);
+  await page.waitForSelector('[data-testid="dash-research"] li', { timeout: 15_000 }).catch(() => undefined);
+  const research = await page.$$eval('[data-testid="dash-research"] li', (els) => els.length);
+  const counts = ((await page.textContent('[data-testid="dash-research"]')) ?? "").includes("기업 12");
+  const us = ((await page.textContent('[data-testid="dash-us"]')) ?? "").includes("S&P 500");
+  await page.waitForFunction(() => document.querySelector('[data-testid="dash-robotics"]')?.textContent?.includes("레인보우로보틱스"), null, { timeout: 15_000 }).catch(() => undefined);
+  const robo = (await page.textContent('[data-testid="dash-robotics"]')) ?? "";
+  const ms = Date.now() - t0;
+  record("F10.3", wire && research === 3 && counts && us && /KR 바스켓 \(2\) 1D/.test(robo) && robo.includes("+0.50%"), `wireTop=${wire} research3=${research} counts=${counts} usSnapshot=${us} robotics="${robo.replace(/\s+/g, " ").slice(0, 80)}" (${ms}ms)`);
 });
 
 await browser.close();

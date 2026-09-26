@@ -43,7 +43,7 @@ mappers accept several candidate field names and stay `unverified`.
 | P4 | done | ETF news (/news/etf + /etfs tab), robotics section (6 tabs), Federal Register, cross-links |
 | P5 | done | /api/wire, Live Wire engine (Web Locks leader), drawer/badge/toasts/OS opt-in, /settings/alerts, SSE hardening |
 | P6 | done | ProChart core + Tier A (/stock, /etfs, /us, /chart), Tier B/C chrome, D9 |
-| P7 | pending | |
+| P7 | done | F9 AI layer (off by default), F10.3 dashboard cards, final gates, FINAL_REPORT |
 
 ## Decisions
 - Dependency: `fast-xml-parser@^5.11.1` (allowed by A6) for RSS/Atom/RDF.
@@ -70,10 +70,14 @@ mappers accept several candidate field names and stay `unverified`.
 - Compare overlay forces the price scale to percent-from-first-visible-bar (native LWC percentage mode) while active.
 - Pivot points use the previous bar's H/L/C (labelled P/R1–3/S1–3); 52-week high/low uses a configurable bar lookback (252 daily).
 
+- Dependency: `@anthropic-ai/sdk@^0.128.0` (P7, F9) — the official Anthropic TypeScript SDK for the `anthropic` adapter (typed request/usage/refusal handling, `maxRetries: 0`, 8 s timeout). Server-only (dynamic import from the server fn; not in any client bundle — checked in `.vercel/output/static`). The `xai` adapter uses `fetch` against the documented REST shape (no extra dependency).
+- F9 prompts carry numbered items (title, ≤ 240-char source snippet, source, time) but no URLs; bullets are mapped back to on-screen items by `[n]`, so every citation link comes from the input list. Cache (15 min) and the daily cap are in-memory per server instance (stated in ENVIRONMENT.md).
+- F10.3 cards reuse existing data paths: Live Wire top 5 reads the shell's wire engine store (no extra request); US snapshot uses the MarketBar's query key (shared cache); 오늘의 리서치 adds `latest` (3 newest) to the cached research briefing (today's rows first, else the same first-page URLs as the research desk); robotics uses the universe query with an `enabled` gate.
+
 ## Deviations
 - Branch name (see Base).
 - FeedList "virtualization" uses native `content-visibility: auto` on rows above 200 (no new dependency).
-- `retrySource` is a POST server function (mutation semantics); everything else is GET.
+- `retrySource`, `generateAiBriefing` and `translateAiHeadlines` are POST server functions (user-initiated mutations; zod-validated like the GET ones); everything else is GET.
 - Extra optional env `FEED_SOURCES_DISABLED` (comma list of registry ids) as a server-side kill switch alongside the registry `enabled` flag.
 - Source health is in-memory per server instance (serverless instances keep separate views; stated on the page).
 - KRX tick table (unified 2023 stock table, ETF/ETN flat 5 KRW) could not be re-verified offline; used only for drawing snap.
@@ -96,6 +100,9 @@ mappers accept several candidate field names and stay `unverified`.
 - F7.18 TradingView widget tab (COULD) not built.
 - F7.11 alerts evaluate on chart data refresh; KIS stream ticks update quote caches only (no intrabar chart updates).
 - Tier B: InvestorFlow and the valuation multiple chart keep their own domain HUD/window controls; they gained the shared theme/formatters, status line, fullscreen, PNG/CSV (and log where sensible). Their existing tests stay green.
+
+- F9 cost: only token counts are shown (no provider price table is hard-coded; prices change). `AI_EFFORT` is an extra optional env for Anthropic `output_config.effort`.
+- F9 xAI adapter follows the documented chat-completions REST shape but could not be exercised offline (egress blocked, no key).
 
 ## Blockers
 - Network egress denies every market-data host (not a credential issue). No paid service needed.
@@ -146,5 +153,11 @@ mappers accept several candidate field names and stay `unverified`.
 4. Tier B: ValuationBand, ValuationHistory (weekly + multiples), InvestorFlow, ExportDual on the shared theme/formatters + ChartShell (status, fullscreen, PNG/CSV; presets/log/% where sensible; ExportDual now dual-axis). Tier C: ExportDesk bar chart in `ChartFrame` (title, unit, source/as-of, aria, PNG/CSV); Sparkline role=img + label. D9 hook hoisted.
 5. Gates: typecheck 0 · tests 201 + 207 · ESLint changed 0 errors · build ok · qa:smoke 40/40 (20 routes × 2) · qa:acceptance 26/26 (incl. AT-36/38/41/42/43/44, 5,000-bar perf: 0 long tasks).
 
+### P7 — AI layer, dashboard, final QA (done)
+1. F9: `src/lib/ai/{briefing,config}.ts` (input normalization ≤ 30, FNV-1a input hash, prompts, cited-bullet validator, translation parser, env gate) + `briefing.test.ts` (AT-46 unit); `src/server/ai/{provider,service}.ts` (anthropic SDK + xai adapters, 8 s timeout, no retries, refusal handling, 15-min cache, daily cap); `src/lib/ai-fns.ts` (zod-validated server fns); `AiBriefingPanel` + `AiTranslateButton` rendered only when the server reports the layer enabled. Wired into `/news/kr`, `/news/us` (+ 기계 번역), `/news/etf` and the `/etfs` tab, KR research desk, US research briefing, robotics overview.
+2. F10.3: `src/components/dashboard/BriefCards.tsx` (Live Wire 최신 5 · 오늘의 리서치 · 미국 스냅샷 · 로봇 스냅샷) behind `deferSecondary`; `latest` in the research briefing payload.
+3. QA: browser AT-46 (off → no AI UI on /news/kr and /news/us; mocked-on → no call before click, label, 3 citation links to input URLs, rejected-count and token footer, 기계 번역 row) and F10.3 card checks added to `qa:acceptance`; AT-45 via qa:smoke (disclaimer + attribution on all 20 routes × 2 viewports); AT-48 build audit (no FS writes in server output; SDK only in the server function).
+4. Gates: see FINAL_REPORT.md.
+
 ## Next steps
-- P7: F9 optional AI layer (off unless configured), F10.3 dashboard cards (Live Wire top 5, 오늘의 리서치, US snapshot, Robotics snapshot), final QA, FINAL_REPORT.md, push, PR decision.
+- Owner: set env vars (ENVIRONMENT.md), rerun `npm run verify:sources` with normal internet, flip verified candidates in the registry, deploy.

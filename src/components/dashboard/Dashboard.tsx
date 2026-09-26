@@ -15,6 +15,7 @@ import { PriceChange, PriceValue } from "@/components/stocks/PriceChange";
 import { StockMiniRow } from "@/components/stocks/StockTable";
 import { ResearchDeskPanel } from "@/components/stocks/ResearchDesk";
 import { DecisionSnapshot } from "@/components/dashboard/DecisionSnapshot";
+import { DashboardBriefCards } from "@/components/dashboard/BriefCards";
 import { Panel } from "@/components/layout/DeskLayout";
 import { Badge } from "@/components/ui/badge";
 import type { LiveQuote } from "@/server/naver-market";
@@ -250,6 +251,9 @@ export function Dashboard() {
       />
       </div>
 
+      <div className="area-brief">
+        <DashboardBriefCards enabled={deferSecondary} />
+      </div>
 
       <Panel
         className="area-etf"
